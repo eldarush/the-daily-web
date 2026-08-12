@@ -1,0 +1,26 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+
+# Environment variables
+.env
+.env.local
+
+# Test & Coverage
+coverage/
+playwright-report/
+test-results/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/mcp.json
+.idea/
+
+# Logs & temp
+logs/
+*.log
+tmp/
+temp/
