@@ -1,0 +1,50 @@
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand-area">
+      <a href="/" class="brand-logo">
+        <span class="brand-name">The Daily Web</span>
+      </a>
+    </div>
+
+    <nav class="main-nav" aria-label="Main Navigation">
+      <ul class="nav-links">
+        <li><a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">Newsfeed</a></li>
+        <% if (currentUser) { %>
+          <% if (currentUser.role === 'reporter') { %>
+            <li><a href="/workspace" class="nav-link <%= path === '/workspace' ? 'active' : '' %>">Reporter Workspace</a></li>
+          <% } else if (currentUser.role === 'editor') { %>
+            <li><a href="/editor" class="nav-link <%= path === '/editor' ? 'active' : '' %>">Editor Hub</a></li>
+          <% } %>
+        <% } %>
+      </ul>
+    </nav>
+
+    <div class="user-action-area">
+      <% if (currentUser) { %>
+        <div class="user-badge">
+          <span class="user-name"><%= currentUser.fullName %></span>
+          <span class="role-pill role-<%= currentUser.role %>"><%= currentUser.role %></span>
+        </div>
+        <button id="logout-btn" class="btn btn-outline" type="button">Sign Out</button>
+      <% } else { %>
+        <a href="/login" class="btn btn-primary">Sign In</a>
+      <% } %>
+    </div>
+  </div>
+</header>
+
+<script>
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/auth/logout', { method: 'POST' });
+        if (res.ok) {
+          window.location.href = '/login';
+        }
+      } catch (err) {
+        console.error('Logout error:', err);
+      }
+    });
+  }
+</script>

@@ -1,0 +1,98 @@
+<%- include('../partials/header') %>
+
+<div class="auth-page-wrapper">
+  <div class="auth-card">
+    <div class="auth-card-header">
+      <h1>Sign In to The Daily Web</h1>
+      <p>Access your reporter workspace or editorial review hub</p>
+    </div>
+
+    <div id="login-error" class="alert alert-danger" style="display: none;"></div>
+
+    <form id="login-form" class="auth-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          placeholder="e.g. reporter1 or editor" 
+          required 
+          autocomplete="username"
+          autofocus
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          placeholder="••••••••" 
+          required 
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn-primary btn-block">
+        Sign In
+      </button>
+    </form>
+
+    <div class="auth-card-footer">
+      <p class="auth-help-text">Credentials are verified securely using bcrypt &bull; Sessions persist across restarts</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const loginForm = document.getElementById('login-form');
+  const errorBox = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit-btn');
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing In...';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          if (data.user && data.user.role === 'editor') {
+            window.location.href = '/editor';
+          } else {
+            window.location.href = '/workspace';
+          }
+        } else {
+          errorBox.textContent = data.error || 'Authentication failed. Please check credentials.';
+          errorBox.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In';
+        }
+      } catch (err) {
+        errorBox.textContent = 'Network or server error. Please try again.';
+        errorBox.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+      }
+    });
+  }
+</script>
+
+<%- include('../partials/footer') %>
