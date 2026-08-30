@@ -1,0 +1,14 @@
+<%- include('../partials/header') %>
+
+<div class="error-page-wrapper">
+  <div class="error-card">
+    <h1><%= typeof title !== 'undefined' ? title : 'Error' %></h1>
+    <p class="error-message"><%= typeof message !== 'undefined' ? message : 'An unexpected error occurred.' %></p>
+    <div class="error-actions">
+      <a href="/" class="btn btn-primary">Return to Newsfeed</a>
+      <a href="/login" class="btn btn-outline">Sign In</a>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>
