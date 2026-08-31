@@ -6,10 +6,14 @@ dotenv.config();
 
 const { createSessionMiddleware } = require('./config/session');
 const { errorHandler } = require('./middlewares/errorHandler');
+const Article = require('./models/Article');
 
 const authRoutes = require('./routes/api/authRoutes');
 const userRoutes = require('./routes/api/userRoutes');
 const weatherRoutes = require('./routes/api/weatherRoutes');
+const reporterRoutes = require('./routes/api/reporterRoutes');
+const editorRoutes = require('./routes/api/editorRoutes');
+const analyticsRoutes = require('./routes/api/analyticsRoutes');
 
 const app = express();
 
@@ -32,6 +36,9 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/weather', weatherRoutes);
+app.use('/api/reporter', reporterRoutes);
+app.use('/api/editor', editorRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
@@ -58,7 +65,8 @@ app.get('/workspace', (req, res) => {
   }
   res.render('pages/workspace', {
     title: 'Reporter Workspace',
-    user: req.session.user
+    user: req.session.user,
+    categories: Article.ARTICLE_CATEGORIES
   });
 });
 
@@ -74,6 +82,24 @@ app.get('/editor', (req, res) => {
   }
   res.render('pages/editor', {
     title: 'Editor Management Hub',
+    user: req.session.user,
+    categories: Article.ARTICLE_CATEGORIES,
+    statuses: Article.ARTICLE_STATUSES
+  });
+});
+
+app.get('/editor/analytics', (req, res) => {
+  if (!req.session || !req.session.user) {
+    return res.redirect('/login');
+  }
+  if (req.session.user.role !== 'editor') {
+    return res.status(403).render('pages/error', {
+      title: 'Access Denied',
+      message: 'Editor privileges required to view Impact Analytics.'
+    });
+  }
+  res.render('pages/analytics', {
+    title: 'Impact Analytics',
     user: req.session.user
   });
 });
