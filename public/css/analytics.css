@@ -1,0 +1,91 @@
+/* Impact Analytics dashboard */
+
+.analytics-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  flex-wrap: wrap;
+}
+.analytics-controls label { font-size: 0.85rem; color: var(--color-text-muted); font-weight: 600; }
+.analytics-controls select {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  min-width: 260px;
+  max-width: 100%;
+}
+
+.chart-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+}
+
+.chart-summary {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.chart-summary[hidden] { display: none; }
+.summary-tile {
+  flex: 1 1 140px;
+  background: var(--color-bg-main);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.summary-value { font-size: 1.6rem; font-weight: 700; color: var(--color-primary); }
+.summary-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+
+.canvas-wrap {
+  position: relative;
+  width: 100%;
+}
+#impactChart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#impactChart[hidden] { display: none; }
+
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  background: var(--color-text-main);
+  color: #fff;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+.tooltip-milestone {
+  margin-top: 0.2rem;
+  color: #fbd38d;
+  white-space: normal;
+  max-width: 220px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+.legend-swatch { width: 20px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend-swatch.line { background: var(--color-accent); }
+.legend-swatch.milestone { background: var(--color-warning); height: 12px; width: 2px; }
