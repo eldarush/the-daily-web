@@ -1,0 +1,47 @@
+<%- include('../partials/header') %>
+
+<link rel="stylesheet" href="/css/analytics.css">
+
+<div class="page-header">
+  <div>
+    <h1>Impact Analytics</h1>
+    <p class="subtitle">Reader views over time, with editor-update milestones.</p>
+  </div>
+  <a href="/editor" class="btn btn-outline">← Back to Hub</a>
+</div>
+
+<div class="analytics-controls">
+  <label for="article-select">Article</label>
+  <select id="article-select"><option value="">Loading articles…</option></select>
+</div>
+
+<div class="chart-card">
+  <div class="chart-summary" id="chart-summary" hidden>
+    <div class="summary-tile">
+      <span class="summary-value" id="sum-total">0</span>
+      <span class="summary-label">Total views</span>
+    </div>
+    <div class="summary-tile">
+      <span class="summary-value" id="sum-updates">0</span>
+      <span class="summary-label">Editor updates</span>
+    </div>
+    <div class="summary-tile">
+      <span class="summary-value" id="sum-peak">0</span>
+      <span class="summary-label">Peak hour</span>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="impactChart" width="900" height="380"></canvas>
+    <div id="chart-tooltip" class="chart-tooltip" hidden></div>
+  </div>
+  <p id="chart-empty" class="empty-hint" hidden>No view data yet for this article.</p>
+  <div class="chart-legend">
+    <span class="legend-item"><span class="legend-swatch line"></span> Hourly views</span>
+    <span class="legend-item"><span class="legend-swatch milestone"></span> Editor update</span>
+  </div>
+</div>
+
+<script src="/js/impact-chart.js"></script>
+
+<%- include('../partials/footer') %>
