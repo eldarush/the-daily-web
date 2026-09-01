@@ -1,0 +1,57 @@
+/* Side-by-side diff viewer */
+
+.diff-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.diff-caption {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 0.75rem;
+}
+.diff-grid {
+  display: flex;
+  gap: 1rem;
+}
+.diff-pane {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.diff-pane h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.diff-content {
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: var(--color-bg-main);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.diff-add {
+  background: #c6f6d5;
+  color: #22543d;
+  text-decoration: none;
+  border-radius: 2px;
+}
+.diff-del {
+  background: #fed7d7;
+  color: #822727;
+  text-decoration: line-through;
+  border-radius: 2px;
+}
+
+@media (max-width: 700px) {
+  .diff-grid { flex-direction: column; }
+}

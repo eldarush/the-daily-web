@@ -1,15 +1,108 @@
 <%- include('../partials/header') %>
 
+<link rel="stylesheet" href="/css/editor.css">
+<link rel="stylesheet" href="/css/diff.css">
+
 <div class="page-header">
-  <h1>Editor Management Hub</h1>
-  <p class="subtitle">Welcome, <strong><%= user.fullName %></strong> (Editor)</p>
+  <div>
+    <h1>Editor Management Hub</h1>
+    <p class="subtitle">Welcome, <strong><%= user.fullName %></strong> — review, revise, approve.</p>
+  </div>
+  <a href="/editor/analytics" class="btn btn-outline">📈 Impact Analytics</a>
 </div>
 
-<div class="editor-placeholder">
-  <div class="info-card">
-    <h3>Editorial Review Queue & Impact Analytics</h3>
-    <p>Review submitted articles, inspect side-by-side diffs for published updates, and monitor time-series reader dynamics.</p>
+<div class="filter-bar">
+  <label for="status-filter">Filter by status</label>
+  <select id="status-filter">
+    <option value="">All statuses</option>
+    <% statuses.forEach(function (s) { %>
+      <option value="<%= s %>"><%= s %></option>
+    <% }); %>
+  </select>
+  <span id="result-count" class="result-count"></span>
+</div>
+
+<div class="table-wrap">
+  <table class="article-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Author</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th>Updated</th>
+        <th class="actions-col">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="article-tbody">
+      <tr><td colspan="6" class="empty-hint">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="pager">
+  <button id="prev-page" class="btn btn-outline" type="button" disabled>← Prev</button>
+  <span id="page-label">Page 1</span>
+  <button id="next-page" class="btn btn-outline" type="button" disabled>Next →</button>
+</div>
+
+<!-- Review / edit modal -->
+<div id="review-modal" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 id="modal-title">Review Article</h2>
+      <button id="modal-close" class="icon-btn" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div id="diff-section" class="diff-section" hidden>
+        <p class="diff-caption">This published article has a proposed revision. Changes are highlighted below.</p>
+        <div class="diff-grid">
+          <div class="diff-pane">
+            <h4>Published (live)</h4>
+            <div id="diff-live" class="diff-content"></div>
+          </div>
+          <div class="diff-pane">
+            <h4>Proposed revision</h4>
+            <div id="diff-pending" class="diff-content"></div>
+          </div>
+        </div>
+      </div>
+
+      <form id="edit-form" class="edit-form">
+        <input type="hidden" id="edit-id">
+        <label for="edit-title">Title</label>
+        <input type="text" id="edit-title" disabled>
+        <label for="edit-summary">Summary</label>
+        <textarea id="edit-summary" rows="2" disabled></textarea>
+        <label for="edit-category">Category</label>
+        <select id="edit-category" disabled>
+          <% categories.forEach(function (c) { %><option value="<%= c %>"><%= c %></option><% }); %>
+        </select>
+        <label for="edit-image">Image URL</label>
+        <input type="text" id="edit-image" disabled>
+        <label for="edit-content">Content</label>
+        <textarea id="edit-content" rows="10" disabled></textarea>
+      </form>
+
+      <div id="reject-box" class="reject-box" hidden>
+        <label for="reject-notes">Notes to the reporter (required)</label>
+        <textarea id="reject-notes" rows="3" placeholder="Explain what needs fixing…"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button id="btn-approve" class="btn btn-success" type="button">Approve &amp; Publish</button>
+      <button id="btn-reject" class="btn btn-danger" type="button">Return for corrections</button>
+      <button id="btn-edit" class="btn btn-outline" type="button">Edit</button>
+      <button id="btn-save-edit" class="btn btn-primary" type="button" hidden>Save changes</button>
+      <button id="btn-delete" class="btn btn-danger-outline" type="button">Delete</button>
+    </div>
+    <p id="modal-status" class="modal-status"></p>
   </div>
 </div>
+
+<script src="/js/diff-viewer.js"></script>
+<script src="/js/editor-hub.js"></script>
 
 <%- include('../partials/footer') %>
