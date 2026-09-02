@@ -1,113 +1,98 @@
 const User = require('../models/User');
 
 /**
- * Lists or searches users (CRUD: Read).
+ * Higher-order function to wrap async route handlers and eliminate boilerplate try/catch blocks.
+ * @param {Function} fn 
  */
-async function listUsers(req, res, next) {
-  try {
-    const { search, role } = req.query;
-    const query = {};
-
-    if (role && ['reporter', 'editor'].includes(role)) {
-      query.role = role;
-    }
-
-    if (search && search.trim()) {
-      query.$or = [
-        { username: { $regex: search.trim(), $options: 'i' } },
-        { fullName: { $regex: search.trim(), $options: 'i' } }
-      ];
-    }
-
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
-    return res.status(200).json({ users });
-  } catch (error) {
-    next(error);
-  }
-}
+const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 /**
- * Gets single user by ID (CRUD: Read).
+ * Lists or searches users with optional role filtering.
  */
-async function getUserById(req, res, next) {
-  try {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    return res.status(200).json({ user });
-  } catch (error) {
-    next(error);
+const listUsers = wrap(async (req, res) => {
+  const { search, role } = req.query;
+  const query = {};
+
+  if (role && ['reporter', 'editor'].includes(role)) {
+    query.role = role;
   }
-}
+
+  if (search && search.trim()) {
+    query.$or = [
+      { username: { $regex: search.trim(), $options: 'i' } },
+      { fullName: { $regex: search.trim(), $options: 'i' } }
+    ];
+  }
+
+  const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+  return res.status(200).json({ users });
+});
 
 /**
- * Creates new user (CRUD: Create).
+ * Retrieves a single user profile by ID.
  */
-async function createUser(req, res, next) {
-  try {
-    const { username, password, fullName, role } = req.body;
-
-    if (!username || !password || !fullName) {
-      return res.status(400).json({ error: 'Username, password, and full name are required.' });
-    }
-
-    const existing = await User.findOne({ username: username.trim() });
-    if (existing) {
-      return res.status(400).json({ error: 'Username already in use.' });
-    }
-
-    const user = new User({
-      username: username.trim(),
-      password,
-      fullName: fullName.trim(),
-      role: role || 'reporter'
-    });
-
-    await user.save();
-    return res.status(201).json({ message: 'User created successfully', user: user.toSafeObject() });
-  } catch (error) {
-    next(error);
+const getUserById = wrap(async (req, res) => {
+  const user = await User.findById(req.params.id).select('-password');
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
   }
-}
+  return res.status(200).json({ user });
+});
 
 /**
- * Updates user (CRUD: Update).
+ * Creates a new user account with validated fields.
  */
-async function updateUser(req, res, next) {
-  try {
-    const { fullName, role, password } = req.body;
-    const user = await User.findById(req.params.id);
+const createUser = wrap(async (req, res) => {
+  const { username, password, fullName, role } = req.body;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (fullName) user.fullName = fullName.trim();
-    if (role && ['reporter', 'editor'].includes(role)) user.role = role;
-    if (password) user.password = password; // pre-save will re-hash
-
-    await user.save();
-    return res.status(200).json({ message: 'User updated successfully', user: user.toSafeObject() });
-  } catch (error) {
-    next(error);
+  if (!username || !password || !fullName) {
+    return res.status(400).json({ error: 'Username, password, and full name are required.' });
   }
-}
+
+  const existing = await User.findOne({ username: username.trim() });
+  if (existing) {
+    return res.status(400).json({ error: 'Username already in use.' });
+  }
+
+  const user = new User({
+    username: username.trim(),
+    password,
+    fullName: fullName.trim(),
+    role: role || 'reporter'
+  });
+
+  await user.save();
+  return res.status(201).json({ message: 'User created successfully', user: user.toSafeObject() });
+});
 
 /**
- * Deletes user (CRUD: Delete).
+ * Updates an existing user's details or role.
  */
-async function deleteUser(req, res, next) {
-  try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    return res.status(200).json({ success: true, message: 'User deleted successfully' });
-  } catch (error) {
-    next(error);
+const updateUser = wrap(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
   }
-}
+
+  const { fullName, role, password } = req.body;
+  if (fullName) user.fullName = fullName.trim();
+  if (role && ['reporter', 'editor'].includes(role)) user.role = role;
+  if (password) user.password = password;
+
+  await user.save();
+  return res.status(200).json({ message: 'User updated successfully', user: user.toSafeObject() });
+});
+
+/**
+ * Deletes a user account.
+ */
+const deleteUser = wrap(async (req, res) => {
+  const user = await User.findByIdAndDelete(req.params.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  return res.status(200).json({ success: true, message: 'User deleted successfully' });
+});
 
 module.exports = {
   listUsers,

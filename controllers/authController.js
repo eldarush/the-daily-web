@@ -1,8 +1,7 @@
 const User = require('../models/User');
 
 /**
- * Handles user authentication (login).
- * Sets persistent session cookie upon success.
+ * Handles user authentication (login) and session initialization.
  */
 async function login(req, res, next) {
   try {
@@ -13,16 +12,10 @@ async function login(req, res, next) {
     }
 
     const user = await User.findOne({ username: username.trim() });
-    if (!user) {
+    if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid username or password.' });
-    }
-
-    // Attach user profile to session (persists across restarts via connect-mongo)
     req.session.user = {
       id: user._id.toString(),
       username: user.username,
@@ -40,21 +33,18 @@ async function login(req, res, next) {
 }
 
 /**
- * Handles user logout.
- * Destroys session and clears cookie.
+ * Destroys current session and clears the session cookie.
  */
 function logout(req, res, next) {
   req.session.destroy((err) => {
-    if (err) {
-      return next(err);
-    }
+    if (err) return next(err);
     res.clearCookie('connect.sid');
     return res.status(200).json({ success: true, message: 'Logged out successfully' });
   });
 }
 
 /**
- * Returns currently logged-in user profile.
+ * Returns current authenticated session user.
  */
 function getCurrentUser(req, res) {
   if (req.session && req.session.user) {

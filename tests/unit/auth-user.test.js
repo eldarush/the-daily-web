@@ -5,7 +5,7 @@ let mongod;
 let app;
 let request;
 let User;
-let resetWeatherCache;
+let weatherController;
 
 describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
   let reporterUser;
@@ -20,16 +20,13 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
     process.env.SESSION_SECRET = 'test-session-secret-key-12345';
     process.env.NODE_ENV = 'test';
 
-    // Connect mongoose
     await mongoose.connect(uri);
 
-    // Require app and dependencies after setting process.env.MONGODB_URI
     app = require('../../app');
     request = require('supertest');
     User = require('../../models/User');
-    resetWeatherCache = require('../../controllers/weatherController').resetWeatherCache;
+    weatherController = require('../../controllers/weatherController');
 
-    // Seed test users
     reporterUser = await User.create({
       username: 'test_rep_1',
       password: 'password123',
@@ -100,6 +97,11 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(res.body.user.username).toBe('test_rep_1');
     });
 
+    test('GET /api/auth/me returns 401 when not authenticated', async () => {
+      const res = await request(app).get('/api/auth/me');
+      expect(res.status).toBe(401);
+    });
+
     test('POST /api/auth/login with invalid password returns 401', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -131,6 +133,18 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
 
       const meRes = await reporterAgent.get('/api/auth/me');
       expect(meRes.status).toBe(401);
+    });
+
+    test('logout handles session destroy error gracefully', () => {
+      const { logout } = require('../../controllers/authController');
+      const mockReq = {
+        session: {
+          destroy: (cb) => cb(new Error('Destroy failed'))
+        }
+      };
+      const mockNext = jest.fn();
+      logout(mockReq, {}, mockNext);
+      expect(mockNext).toHaveBeenCalledWith(expect.any(Error));
     });
   });
 
@@ -236,7 +250,7 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
 
   describe('Weather Service with 15-Minute Cache (/api/weather)', () => {
     beforeEach(() => {
-      resetWeatherCache();
+      weatherController.resetWeatherCache();
     });
 
     test('GET /api/weather returns valid weather payload', async () => {
@@ -249,28 +263,62 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
     });
 
     test('Subsequent call to /api/weather returns cached payload within 15 minutes', async () => {
-      // First call: fetches / initializes cache
       await request(app).get('/api/weather');
 
-      // Second call immediately after: must return cached: true
       const secondRes = await request(app).get('/api/weather');
       expect(secondRes.status).toBe(200);
       expect(secondRes.body.cached).toBe(true);
       expect(typeof secondRes.body.cacheAgeSeconds).toBe('number');
     });
+
+    test('fetchWeather handles successful OpenWeatherMap API responses', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          name: 'Haifa',
+          main: { temp: 24.2 },
+          weather: [{ description: 'Sunny', icon: '01d' }]
+        })
+      });
+
+      const data = await weatherController.fetchWeather('Haifa', 'mock_api_key');
+      expect(data.city).toBe('Haifa');
+      expect(data.temp).toBe(24);
+      expect(data.description).toBe('Sunny');
+
+      global.fetch = originalFetch;
+    });
+
+    test('fetchWeather falls back gracefully on fetch error', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+
+      const data = await weatherController.fetchWeather('Jerusalem', 'mock_key');
+      expect(data.city).toBe('Jerusalem');
+      expect(data.temp).toBe(26);
+
+      global.fetch = originalFetch;
+    });
   });
 
-  describe('Web Pages & Error Handling', () => {
+  describe('Web Pages, Middlewares & Error Handling', () => {
     test('GET /login returns HTML login page', async () => {
       const res = await request(app).get('/login');
       expect(res.status).toBe(200);
       expect(res.text).toContain('Sign In to The Daily Web');
     });
 
-    test('GET /login when authenticated redirects to appropriate area', async () => {
+    test('GET /login when authenticated as editor redirects to /editor', async () => {
       const res = await editorAgent.get('/login');
       expect(res.status).toBe(302);
       expect(res.header.location).toBe('/editor');
+    });
+
+    test('GET /login when authenticated as reporter redirects to /workspace', async () => {
+      const res = await reporterAgent.get('/login');
+      expect(res.status).toBe(302);
+      expect(res.header.location).toBe('/workspace');
     });
 
     test('GET /workspace for unauthenticated redirects to /login', async () => {
@@ -285,9 +333,16 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(res.text).toContain('Reporter Workspace');
     });
 
-    test('GET /editor for reporter returns 403 Forbidden', async () => {
+    test('GET /editor for unauthenticated redirects to /login', async () => {
+      const res = await request(app).get('/editor');
+      expect(res.status).toBe(302);
+      expect(res.header.location).toBe('/login');
+    });
+
+    test('GET /editor for reporter returns 403 Forbidden HTML error page', async () => {
       const res = await reporterAgent.get('/editor');
       expect(res.status).toBe(403);
+      expect(res.text).toContain('Access Denied');
     });
 
     test('GET /editor for editor succeeds', async () => {
@@ -296,9 +351,16 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(res.text).toContain('Editor Management Hub');
     });
 
-    test('GET /unknown-route returns 404', async () => {
+    test('GET / renders home page', async () => {
+      const res = await request(app).get('/');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('The Daily Web');
+    });
+
+    test('GET /unknown-route returns 404 HTML error', async () => {
       const res = await request(app).get('/unknown-route');
       expect(res.status).toBe(404);
+      expect(res.text).toContain('404 - Page Not Found');
     });
 
     test('API unknown route returns 404 JSON', async () => {
@@ -307,44 +369,61 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(res.body.error).toContain('not found');
     });
 
-    test('errorHandler formats duplicate key and validation errors', () => {
+    test('errorHandler handles Mongoose duplicate key and validation errors correctly', () => {
       const { errorHandler } = require('../../middlewares/errorHandler');
-      
-      // Duplicate key error
-      const dupError = new Error('Duplicate');
+
+      // 1. Duplicate key error
+      const dupError = new Error('Duplicate key');
       dupError.code = 11000;
       dupError.keyValue = { username: 'test' };
-      const res1 = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-        render: jest.fn()
-      };
-      const req1 = { originalUrl: '/api/test', path: '/test', headers: { accept: 'application/json' } };
+      const res1 = { status: jest.fn().mockReturnThis(), json: jest.fn(), render: jest.fn() };
+      const req1 = { originalUrl: '/api/test', headers: { accept: 'application/json' } };
       errorHandler(dupError, req1, res1, jest.fn());
       expect(res1.status).toHaveBeenCalledWith(400);
       expect(res1.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('already exists') }));
 
-      // Validation error
-      const valError = new Error('Validation');
+      // 2. Validation error
+      const valError = new Error('Validation error');
       valError.name = 'ValidationError';
-      valError.errors = { field1: { message: 'field1 is required' } };
-      const res2 = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+      valError.errors = {
+        field1: { message: 'field1 is required' }
       };
+      const res2 = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       errorHandler(valError, req1, res2, jest.fn());
       expect(res2.status).toHaveBeenCalledWith(400);
+      expect(res2.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'field1 is required' }));
 
-      // Web HTML error
-      const webError = new Error('Server Crash');
-      const res3 = {
-        status: jest.fn().mockReturnThis(),
-        render: jest.fn()
-      };
-      const req3 = { originalUrl: '/some-page', path: '/some-page', headers: {} };
-      errorHandler(webError, req3, res3, jest.fn());
+      // 3. Web HTML generic error
+      const genericError = new Error('Database unreachable');
+      const res3 = { status: jest.fn().mockReturnThis(), render: jest.fn() };
+      const req3 = { originalUrl: '/news', path: '/news', headers: {} };
+      errorHandler(genericError, req3, res3, jest.fn());
       expect(res3.status).toHaveBeenCalledWith(500);
-      expect(res3.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'Server Crash' }));
+      expect(res3.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'Database unreachable' }));
+    });
+
+    test('requireAuth redirects unauthenticated web requests to /login', () => {
+      const { requireAuth } = require('../../middlewares/auth');
+      const res = { redirect: jest.fn() };
+      const req = { originalUrl: '/dashboard', headers: {} };
+      requireAuth(req, res, jest.fn());
+      expect(res.redirect).toHaveBeenCalledWith('/login');
+    });
+
+    test('requireRole handles unauthenticated web and API calls', () => {
+      const { requireRole } = require('../../middlewares/rbac');
+
+      // Web
+      const resWeb = { redirect: jest.fn() };
+      const reqWeb = { originalUrl: '/admin', headers: {} };
+      requireRole('editor')(reqWeb, resWeb, jest.fn());
+      expect(resWeb.redirect).toHaveBeenCalledWith('/login');
+
+      // API
+      const resApi = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const reqApi = { originalUrl: '/api/admin', headers: {} };
+      requireRole('editor')(reqApi, resApi, jest.fn());
+      expect(resApi.status).toHaveBeenCalledWith(401);
     });
   });
 });

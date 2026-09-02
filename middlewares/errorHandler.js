@@ -23,7 +23,7 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: messages.join(', ') });
   }
 
-  if (req.xhr || req.path.startsWith('/api') || req.headers.accept?.includes('application/json')) {
+  if (req.xhr || req.path?.startsWith('/api') || req.originalUrl?.startsWith('/api') || req.headers?.accept?.includes('application/json')) {
     return res.status(statusCode).json({
       error: err.message || 'An unexpected internal error occurred.'
     });
