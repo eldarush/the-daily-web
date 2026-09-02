@@ -43,6 +43,11 @@ describe('Authentication, User Management & Weather Service', () => {
   });
 
   afterAll(async () => {
+    const { getSessionStore } = require('../../config/session');
+    const store = getSessionStore();
+    if (store && store.close) {
+      await store.close();
+    }
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
     }
