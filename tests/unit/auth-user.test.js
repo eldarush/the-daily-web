@@ -410,20 +410,149 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(res.redirect).toHaveBeenCalledWith('/login');
     });
 
-    test('requireRole handles unauthenticated web and API calls', () => {
+    test('requireRole passes to next() when user has matching role', () => {
       const { requireRole } = require('../../middlewares/rbac');
+      const nextFn = jest.fn();
+      requireRole('reporter')({ session: { user: { role: 'reporter' } }, headers: {} }, {}, nextFn);
+      expect(nextFn).toHaveBeenCalled();
+    });
 
-      // Web
+    test('requireRole handles session present without user object for web and api', () => {
+      const { requireRole } = require('../../middlewares/rbac');
       const resWeb = { redirect: jest.fn() };
-      const reqWeb = { originalUrl: '/admin', headers: {} };
-      requireRole('editor')(reqWeb, resWeb, jest.fn());
+      requireRole('reporter')({ session: {}, headers: {} }, resWeb, jest.fn());
       expect(resWeb.redirect).toHaveBeenCalledWith('/login');
 
-      // API
       const resApi = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-      const reqApi = { originalUrl: '/api/admin', headers: {} };
-      requireRole('editor')(reqApi, resApi, jest.fn());
+      requireRole('reporter')({ session: {}, originalUrl: '/api/test', headers: {} }, resApi, jest.fn());
       expect(resApi.status).toHaveBeenCalledWith(401);
+    });
+
+    test('authController and userController branch edge cases', async () => {
+      const { getCurrentUser, login } = require('../../controllers/authController');
+      
+      // getCurrentUser with session but no user
+      const mockRes = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      getCurrentUser({ session: {} }, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+
+      // login missing only password
+      const resNoPass = await request(app).post('/api/auth/login').send({ username: 'test_rep_1' });
+      expect(resNoPass.status).toBe(400);
+
+      // login missing only username
+      const resNoUser = await request(app).post('/api/auth/login').send({ password: 'password123' });
+      expect(resNoUser.status).toBe(400);
+
+      // login catch block error forwarding
+      const nextMock = jest.fn();
+      const findSpy = jest.spyOn(User, 'findOne').mockRejectedValueOnce(new Error('Find error'));
+      await login({ body: { username: 'test', password: '123' } }, {}, nextMock);
+      expect(nextMock).toHaveBeenCalledWith(expect.any(Error));
+      findSpy.mockRestore();
+
+      // listUsers with unrecognized role and whitespace search
+      const resFilter = await editorAgent.get('/api/users?role=unknown&search=%20%20');
+      expect(resFilter.status).toBe(200);
+
+      // createUser validation for missing individual fields
+      const resMissingPass = await editorAgent.post('/api/users').send({ username: 'user_x', fullName: 'Full Name' });
+      expect(resMissingPass.status).toBe(400);
+      const resMissingName = await editorAgent.post('/api/users').send({ username: 'user_y', password: 'password123' });
+      expect(resMissingName.status).toBe(400);
+
+      // createUser default role 'reporter'
+      const resDef = await editorAgent.post('/api/users').send({ username: 'user_def_role', password: 'password123', fullName: 'Def User' });
+      expect(resDef.status).toBe(201);
+      expect(resDef.body.user.role).toBe('reporter');
+
+      // updateUser with invalid role (ignored) and empty body
+      const resInvalidRole = await editorAgent.put(`/api/users/${resDef.body.user.id}`).send({ role: 'superuser' });
+      expect(resInvalidRole.status).toBe(200);
+      expect(resInvalidRole.body.user.role).toBe('reporter');
+
+      const resEmptyBody = await editorAgent.put(`/api/users/${resDef.body.user.id}`).send({});
+      expect(resEmptyBody.status).toBe(200);
+    });
+
+    test('weatherController and fetchWeather comprehensive branch coverage', async () => {
+      // 1. fetchWeather with empty string apiKey
+      const dataEmptyKey = await weatherController.fetchWeather('Eilat', '  ');
+      expect(dataEmptyKey.city).toBe('Eilat');
+      expect(dataEmptyKey.cached).toBe(false);
+
+      // 2. fetchWeather with omitted city
+      const dataNoCity = await weatherController.fetchWeather(undefined, undefined);
+      expect(dataNoCity.city).toBe('Tel Aviv');
+
+      // 3. fetchWeather with API returning ok: false
+      const origFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValueOnce({ ok: false });
+      const dataFailedApi = await weatherController.fetchWeather('Beer Sheva', 'valid_key');
+      expect(dataFailedApi.city).toBe('Beer Sheva');
+
+      // 4. fetchWeather with API returning partial data (missing name, missing weather array)
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ main: { temp: 22.8 } })
+      });
+      const dataPartial = await weatherController.fetchWeather('Netanya', 'valid_key');
+      expect(dataPartial.city).toBe('Netanya');
+      expect(dataPartial.description).toBe('Clear');
+      expect(dataPartial.icon).toBe('01d');
+
+      // 5. getWeather error handling
+      const nextWeatherErr = jest.fn();
+      const origFetchWeather = weatherController.fetchWeather;
+      weatherController.fetchWeather = jest.fn().mockRejectedValueOnce(new Error('Weather crash'));
+      await weatherController.getWeather({}, {}, nextWeatherErr);
+      expect(nextWeatherErr).toHaveBeenCalledWith(expect.any(Error));
+      weatherController.fetchWeather = origFetchWeather;
+
+      global.fetch = origFetch;
+    });
+
+    test('errorHandler all branch variations', () => {
+      const { errorHandler } = require('../../middlewares/errorHandler');
+
+      // err.status
+      const resStatus = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler({ status: 403, message: 'Forbidden access' }, { originalUrl: '/api/secure' }, resStatus, jest.fn());
+      expect(resStatus.status).toHaveBeenCalledWith(403);
+
+      // err.statusCode and empty message
+      const resStatusCode = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler({ statusCode: 422 }, { originalUrl: '/api/data' }, resStatusCode, jest.fn());
+      expect(resStatusCode.status).toHaveBeenCalledWith(422);
+      expect(resStatusCode.json).toHaveBeenCalledWith({ error: 'An unexpected internal error occurred.' });
+
+      // code 11000 with empty keyValue
+      const resDup = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler({ code: 11000 }, { originalUrl: '/api/data' }, resDup, jest.fn());
+      expect(resDup.json).toHaveBeenCalledWith({ error: 'A record with this field already exists.' });
+
+      // ValidationError with empty errors
+      const resVal = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler({ name: 'ValidationError' }, { originalUrl: '/api/data' }, resVal, jest.fn());
+      expect(resVal.json).toHaveBeenCalledWith({ error: '' });
+
+      // Production mode stack suppression
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const resProd = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler(new Error('Prod hidden error'), { originalUrl: '/api/data' }, resProd, jest.fn());
+      process.env.NODE_ENV = prevEnv;
+      expect(resProd.status).toHaveBeenCalledWith(500);
+
+      // req.xhr branch
+      const resXhr = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      errorHandler(new Error('XHR fail'), { xhr: true }, resXhr, jest.fn());
+      expect(resXhr.json).toHaveBeenCalledWith({ error: 'XHR fail' });
+
+      // Web error with empty message
+      const resWebEmpty = { status: jest.fn().mockReturnThis(), render: jest.fn() };
+      errorHandler({}, { originalUrl: '/page', path: '/page', headers: {} }, resWebEmpty, jest.fn());
+      expect(resWebEmpty.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'An unexpected error occurred.' }));
     });
   });
 });

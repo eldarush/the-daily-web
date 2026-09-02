@@ -6,7 +6,7 @@
  */
 function requireRole(role) {
   return function(req, res, next) {
-    const isApi = req.originalUrl?.startsWith('/api') || req.path?.startsWith('/api') || req.xhr || req.headers.accept?.includes('application/json');
+    const isApi = req.originalUrl?.startsWith('/api') || req.path?.startsWith('/api') || req.xhr || req.headers?.accept?.includes('application/json');
 
     if (!req.session || !req.session.user) {
       if (isApi) {
