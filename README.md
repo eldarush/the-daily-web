@@ -176,3 +176,56 @@ Runs the Jest suite against an in-memory MongoDB instance with full code coverag
 npx playwright test
 ```
 Executes headless browser tests validating login workflows, session persistence, and UI component rendering.
+
+---
+
+## Module 4 — Publishing Workflow, Diff Viewer & Impact Analytics
+
+Owns the `Article` and `ViewAnalytics` models and the reporter/editor/analytics
+surface built on top of the shared foundation (User, auth, RBAC, sessions).
+
+### Features
+- **Continuous autosave** — the reporter workspace (`/workspace`) saves on every
+  keystroke (800 ms debounce) to both the server and `localStorage`. No save
+  button. Reloading, closing the tab, or switching machines restores the latest
+  version (server-backed), so work is never lost.
+- **Dual-version publishing** — editing an already-published article stages the
+  changes in `pendingUpdate`. The public keeps seeing the live version until an
+  editor approves; approval promotes the staged fields and records a milestone.
+- **Strict state machine** — `draft → pending`, `pending → published`,
+  `pending → rejected` (with mandatory notes), `rejected → pending`. All other
+  transitions are refused server-side.
+- **Editor hub** (`/editor`) — filterable, paginated table with a review modal:
+  side-by-side **word-level diff** (pure Vanilla JS, no library), inline edit,
+  approve, return-for-corrections, and delete.
+- **Impact Analytics** (`/editor/analytics`) — a pure-Canvas time-series of
+  hourly views with vertical milestone markers at each editor update, so the
+  before/after readership impact is visible. Hover for exact values and the
+  changelog note.
+
+### API (all permission-checked server-side)
+| Method | Endpoint | Role |
+|---|---|---|
+| `GET` | `/api/reporter/articles` | Reporter |
+| `POST` | `/api/reporter/articles` | Reporter |
+| `PUT` | `/api/reporter/articles/:id/autosave` | Reporter |
+| `POST` | `/api/reporter/articles/:id/submit` | Reporter |
+| `GET` | `/api/editor/articles` | Editor |
+| `GET` | `/api/editor/articles/:id/diff` | Editor |
+| `PUT` | `/api/editor/articles/:id` | Editor |
+| `POST` | `/api/editor/articles/:id/approve` | Editor |
+| `POST` | `/api/editor/articles/:id/reject` | Editor |
+| `DELETE` | `/api/editor/articles/:id` | Editor |
+| `GET` | `/api/analytics/:articleId` | Editor |
+
+`recordView(articleId)` in `controllers/analyticsController.js` is the helper the
+public article page calls to increment `viewsCount` and the hourly bucket.
+
+### Demo data
+```bash
+npm run seed
+```
+Generates 4 reporters + 1 editor (password `password123`), 520 articles across
+all 7 categories and all 4 states, 168 hours of hourly view curves with
+post-update bumps, update histories, and 15 live articles with a staged revision
+for the diff demo.
