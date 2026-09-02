@@ -1,209 +1,178 @@
 # The Daily Web
 
-> **Modern, High-Performance News Publishing & Editorial Management Platform**  
-> An enterprise-ready digital newspaper and newsroom workflow engine engineered strictly with native web standards and Express.js MVC.
+A high-performance news publishing and editorial management platform built with Express.js MVC, MongoDB, and vanilla front-end web standards.
 
 ---
 
-## Core Architectural Standards & Technology Stack
+## Architectural Principles
 
-The platform is built with a zero-dependency client philosophy to guarantee maximum speed, SEO discoverability, and clean maintainability:
+The application is built around standard web technologies with zero client-side framework dependencies:
 
-| Layer | Technology | Architectural Rationale |
-|---|---|---|
-| **Backend Framework** | Node.js & Express.js (strict MVC) | Lightweight, predictable routing and controller architecture |
-| **Data Layer** | MongoDB & Mongoose ODM | Flexible document storage with schema validation & indexing |
-| **Session Persistence** | `connect-mongo` | Distributed session management; user sessions survive server restarts |
-| **SSR / Templating** | EJS (Server-Side Rendering) | Fast initial server rendering and optimal SEO indexing |
-| **Client Scripting** | Pure Vanilla JavaScript (Native `fetch()`, DOM APIs) | Zero bundle overhead, native browser performance, no framework bloat |
-| **Styling & Layout** | Semantic HTML5 & Pure CSS Flexbox | Fully responsive layout across desktop, tablet, and mobile devices |
+- **Server-Side Rendering**: EJS templates deliver complete HTML pages on initial load for optimal SEO indexing and fast first-contentful-paint.
+- **Client Scripting**: Pure Vanilla JavaScript with native `fetch()` and standard DOM APIs. No client build steps or bulky framework runtimes.
+- **Layout & Presentation**: Semantic HTML5 elements (`header`, `nav`, `main`, `aside`, `footer`) styled with responsive CSS Flexbox.
+- **Session Persistence**: Sessions are backed by MongoDB via `connect-mongo`, surviving server restarts and deployments.
+- **Data Security**: Passwords hashed with `bcrypt` (12 salt rounds) at the model schema level. Outgoing user models never leak password hashes.
 
 ---
 
-## System Architecture & Modular Division
-
-The system is architected into four decoupled, modular subsystems:
+## System Architecture
 
 ```
-                               +-----------------------------+
-                               |       Client Browser        |
-                               |  (Vanilla JS + CSS Flexbox) |
-                               +--------------+--------------+
-                                              | HTTP / REST / JSON
-                                              v
-+----------------------------------------------------------------------------------------+
-|                               Express.js MVC Application                               |
-+------------------------------+-----------------------------+---------------------------+
-| Track 1: Eldar               | Track 2: Segev              | Track 3 & 4: Ofir & Hodara|
-| - Express Scaffolding        | - Public Newsfeed SSR & AJAX| - Interactive Comments    |
-| - Mongo Session Store        | - Live Search & Filtering   | - Spam Limiting (HTTP 429)|
-| - User Model & Bcrypt        | - Client-Side State Machine │ - Real-Time Autosave      │
-| - RBAC (reporter, editor)    | - Infinite Scroll (20/batch)| - Dual-Version Revisions  |
-| - Weather Cache (15-min TTL) |                             | - Impact Analytics Chart  |
-+------------------------------+-----------------------------+---------------------------+
-                                              | Mongoose ODM
-                                              v
-                               +-----------------------------+
-                               |       MongoDB Database      |
-                               |   users, articles, comments |
-                               |   sessions, view_analytics |
-                               +-----------------------------+
+                       +-----------------------------+
+                       |       Client Browser        |
+                       |  (Vanilla JS + CSS Flexbox) |
+                       +--------------+--------------+
+                                      | HTTP / REST / JSON
+                                      v
++-------------------------------------------------------------------------------+
+|                           Express.js MVC Application                          |
++--------------------------+----------------------------+-----------------------+
+| Identity & Access        | Content Delivery           | Editorial Operations  |
+| - Authentication         | - Public Newsfeed SSR      | - Article Workspace   |
+| - Session Store (Mongo)  | - Live AJAX Search         | - Dual-Version Drafts |
+| - RBAC (Reporter/Editor) | - Category Filtering       | - Editorial Reviews   |
+| - Weather Integration    | - Infinite Scroll Batches  | - Reader Analytics    |
++--------------------------+----------------------------+-----------------------+
+                                      | Mongoose ODM
+                                      v
+                       +-----------------------------+
+                       |       MongoDB Database      |
+                       |   users, articles, comments |
+                       |   sessions, view_analytics |
+                       +-----------------------------+
 ```
 
-### Subsystem Overview:
-1. **Core Platform & Identity (Track 1 - Eldar)**: Express MVC foundation, User model, Bcrypt security, Mongo session persistence, RBAC guards, User management CRUD, and server-cached weather infrastructure.
-2. **Newsfeed Engine & Discovery (Track 2 - Segev)**: Public newsfeed SSR and Vanilla AJAX feed engine (infinite scroll, live debounced search, multi-category filtering).
-3. **Engagement & Moderation (Track 3 - Ofir)**: Full article SSR view, interactive comment tree, and IP rate limiting (max 3 comments/min, HTTP 429).
-4. **Editorial & Publishing Lifecycle (Track 4 - Hodara)**: Dual-version revision workflow, reporter real-time autosave studio, side-by-side diff viewer, and time-series impact analytics.
+### Key Modules:
+- **Identity & Access Management**: User authentication, role-based authorization guards, session persistence, and editor user administration.
+- **Content Delivery**: Server-rendered public articles, infinite-scroll newsfeed, live debounced search, and category filtering.
+- **Reader Engagement**: Article discussion threads and IP-based rate limiting to prevent spam submissions.
+- **Editorial Operations**: Dual-version drafting workflows, continuous autosave, editorial review queues, and view impact analytics.
 
 ---
 
-## Authentication, RBAC & Security
+## Access Control
 
-### Role-Based Access Control (RBAC) Matrix:
-| Endpoint / Resource | Guest | Reporter | Editor |
+| Route | Guest | Reporter | Editor |
 |---|:---:|:---:|:---:|
-| `GET /` (Newsfeed) | Allowed | Allowed | Allowed |
+| `GET /` | Allowed | Allowed | Allowed |
 | `GET /api/weather` | Allowed | Allowed | Allowed |
 | `POST /api/auth/login` | Allowed | Allowed | Allowed |
-| `POST /api/auth/logout` | Denied (401) | Allowed | Allowed |
-| `GET /api/auth/me` | Denied (401) | Allowed | Allowed |
-| `GET /workspace` (Reporter Studio) | Redirect (302) | Allowed | Redirect (302) |
-| `GET /editor` (Editor Hub) | Redirect (302) | Denied (403) | Allowed |
-| `GET /api/users` (User Management) | Denied (401) | Denied (403) | Allowed |
-| `POST /api/users` (Create User) | Denied (401) | Denied (403) | Allowed |
-| `PUT /api/users/:id` (Update User) | Denied (401) | Denied (403) | Allowed |
-| `DELETE /api/users/:id` (Delete User) | Denied (401) | Denied (403) | Allowed |
-
-### Security Guarantees:
-- **Password Hashing**: Passwords hashed with `bcrypt` (12 salt rounds) via Mongoose `pre('save')` hooks. Plaintext passwords are never stored.
-- **Session Durability**: Sessions are persisted in the MongoDB `sessions` collection via `connect-mongo` with a 14-day TTL. Restarting the server never invalidates active user sessions.
-- **Role Enforcement**: Every privileged route is protected server-side with `middlewares/auth.js` and `middlewares/rbac.js`.
-- **Safe Object Serialization**: Outbound user models serialize via `toSafeObject()`, ensuring password hashes are excluded from responses.
+| `POST /api/auth/logout` | 401 | Allowed | Allowed |
+| `GET /api/auth/me` | 401 | Allowed | Allowed |
+| `GET /workspace` | Redirect (`/login`) | Allowed | Redirect (`/login`) |
+| `GET /editor` | Redirect (`/login`) | 403 | Allowed |
+| `GET /api/users` | 401 | 403 | Allowed |
+| `POST /api/users` | 401 | 403 | Allowed |
+| `PUT /api/users/:id` | 401 | 403 | Allowed |
+| `DELETE /api/users/:id` | 401 | 403 | Allowed |
 
 ---
 
-## Weather Service Architecture
+## Weather Service
 
-The weather component displays live conditions while operating under a strict 15-minute server-side caching policy:
-
-- **In-Memory Cache TTL**: 15 minutes (`15 * 60 * 1000` ms).
-- **Behavior**: External API is queried only once every 15 minutes. Subsequent client requests are served instantly from cache (`cached: true`).
-- **Resilience**: In offline environments or when an external API key is absent, the service falls back gracefully to default meteorological data, maintaining continuous system availability.
+The platform includes a localized weather service displaying current meteorological conditions:
+- Fetches data from OpenWeatherMap API using server-side caching.
+- Cached in-memory with a 15-minute TTL to respect external rate limits.
+- Automatically serves realistic fallback conditions if external APIs are unreachable.
 
 ---
 
-## Directory Structure
+## Project Structure
 
 ```text
 the-daily-web/
-├── .github/workflows/ci.yml       # Automated CI pipeline
+├── .github/workflows/ci.yml       # GitHub Actions CI pipeline
 ├── config/
-│   ├── db.js                      # Mongoose connection & lifecycle manager
-│   └── session.js                 # connect-mongo persistent session configuration
+│   ├── db.js                      # MongoDB connection manager
+│   └── session.js                 # Session persistence configuration
 ├── controllers/
-│   ├── authController.js          # Authentication (login, logout, session profile)
-│   ├── userController.js          # Editor user administration CRUD
-│   └── weatherController.js       # Weather service with 15-minute server cache
+│   ├── authController.js          # Authentication handlers
+│   ├── userController.js          # User administration CRUD
+│   └── weatherController.js       # Weather service with 15-minute caching
 ├── middlewares/
-│   ├── auth.js                    # Session authentication guard
-│   ├── rbac.js                    # Role-based authorization middleware
-│   └── errorHandler.js            # Centralized error logging and JSON/HTML handler
+│   ├── auth.js                    # Session authentication check
+│   ├── rbac.js                    # Role-based access control
+│   └── errorHandler.js            # Centralized error handler
 ├── models/
-│   └── User.js                    # User schema with bcrypt hashing & role validation
+│   └── User.js                    # User schema and password hashing
 ├── public/
 │   ├── css/
-│   │   ├── variables.css          # Design tokens & color system
-│   │   └── layout.css             # Pure CSS Flexbox responsive layout
+│   │   ├── variables.css          # Color tokens and shared styles
+│   │   └── layout.css             # Flexbox responsive grid
 │   └── js/
-│       └── weather.js             # Vanilla JS weather fetcher & DOM poller
+│       └── weather.js             # Vanilla JS weather fetcher
 ├── routes/api/
-│   ├── authRoutes.js              # Authentication API routes (/api/auth)
-│   ├── userRoutes.js              # User management routes (/api/users)
-│   └── weatherRoutes.js           # Weather API route (/api/weather)
+│   ├── authRoutes.js              # Authentication API endpoints
+│   ├── userRoutes.js              # User management API endpoints
+│   └── weatherRoutes.js           # Weather API endpoint
 ├── tests/
 │   ├── unit/
-│   │   └── auth-user.test.js      # Unit and integration test suite (100% coverage)
+│   │   └── auth-user.test.js      # Unit and integration test suite
 │   └── e2e/
-│       └── auth-session.spec.js   # Playwright end-to-end browser tests
+│       └── auth-session.spec.js   # Playwright end-to-end browser suite
 ├── views/
 │   ├── pages/
-│   │   ├── home.ejs               # Public newsfeed view
-│   │   ├── login.ejs              # Responsive authentication view
-│   │   ├── workspace.ejs          # Reporter drafting studio view
-│   │   ├── editor.ejs             # Editor review hub view
-│   │   └── error.ejs              # Centralized error view
+│   │   ├── home.ejs               # Main newsfeed view
+│   │   ├── login.ejs              # Login form view
+│   │   ├── workspace.ejs          # Reporter drafting view
+│   │   ├── editor.ejs             # Editor management hub
+│   │   └── error.ejs              # Error display page
 │   └── partials/
-│       ├── header.ejs             # Semantic HTML5 head & top layout
-│       ├── navbar.ejs             # Dynamic navigation bar with session state
+│       ├── header.ejs             # Global head and opening layout
+│       ├── navbar.ejs             # Top navigation bar
 │       ├── weather-widget.ejs     # Sidebar weather card
-│       └── footer.ejs             # Semantic footer & closing tags
-├── app.js                         # Express MVC application bootstrap
-├── server.js                      # HTTP listener & process signal handler
-├── package.json                   # Application dependencies & test scripts
-└── README.md                      # Comprehensive application documentation
+│       └── footer.ejs             # Footer and script loader
+├── app.js                         # Express application setup
+├── server.js                      # Server startup and shutdown handling
+├── package.json                   # Dependencies and scripts
+└── README.md
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Prerequisites
-- **Node.js**: v20.x or higher
-- **MongoDB**: v6.x or higher (or MongoDB Atlas)
+### Prerequisites
+- Node.js 20 or higher
+- MongoDB 6.0 or higher
 
-### 2. Installation
+### Setup
+
+1. Install dependencies:
 ```bash
-git clone https://github.com/eldarush/the-daily-web.git
-cd the-daily-web
 npm install
 ```
 
-### 3. Environment Configuration
-Create a `.env` file in the root directory:
+2. Configure environment variables in `.env`:
 ```ini
 PORT=3000
 MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web
-SESSION_SECRET=daily-web-ultra-secure-session-key-production
+SESSION_SECRET=your-secure-session-key
 WEATHER_CITY=Tel Aviv
-OPENWEATHER_API_KEY=your_openweathermap_api_key_here
+OPENWEATHER_API_KEY=your_openweathermap_api_key
 NODE_ENV=development
 ```
 
-### 4. Running the Application
+3. Run the development server:
 ```bash
-# Start server
-npm start
-
-# Or with nodemon for live development
 npm run dev
 ```
-Open `http://localhost:3000` in your web browser.
+
+The application will be accessible at `http://localhost:3000`.
 
 ---
 
-## Testing & Quality Assurance
+## Running Tests
 
-### Unit & Integration Tests (Jest)
-Executes the comprehensive test suite with `mongodb-memory-server` and strict coverage gates:
+### Unit and Integration Tests
 ```bash
 npm test
 ```
+Runs the Jest suite against an in-memory MongoDB instance with full code coverage verification.
 
-**Quality Metrics:**
-- **Statements**: 100.0%
-- **Lines**: 100.0%
-- **Functions**: 100.0%
-- **Branches**: 100.0%
-- **Passing Tests**: 100% pass rate
-
-### End-to-End Browser Tests (Playwright)
+### End-to-End Tests
 ```bash
 npx playwright test
 ```
-Validates real browser scenarios:
-- Authentication flow with credential verification.
-- Redirection to role-specific views (`/workspace` vs. `/editor`).
-- Session persistence across browser reloads.
-- Sidebar weather widget loading.
-- Clean session invalidation upon sign-out.
+Executes headless browser tests validating login workflows, session persistence, and UI component rendering.

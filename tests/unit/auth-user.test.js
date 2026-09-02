@@ -7,7 +7,7 @@ let request;
 let User;
 let weatherController;
 
-describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
+describe('Authentication, User Management & Weather Service', () => {
   let reporterUser;
   let editorUser;
   let editorAgent;

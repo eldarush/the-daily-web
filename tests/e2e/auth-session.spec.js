@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const mongoose = require('mongoose');
 const User = require('../../models/User');
 
-test.describe('Eldar Track: Auth Flow & Session Durability', () => {
+test.describe('Authentication Flow & Session Durability', () => {
   test.beforeAll(async () => {
     const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web';
     if (mongoose.connection.readyState === 0) {
