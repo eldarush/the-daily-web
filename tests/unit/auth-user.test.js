@@ -242,6 +242,11 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       const deleteNonExistent = await editorAgent.delete(`/api/users/${new mongoose.Types.ObjectId()}`);
       expect(deleteNonExistent.status).toBe(404);
 
+      // Attempt to delete own account (cannot delete self)
+      const deleteOwnRes = await editorAgent.delete(`/api/users/${editorUser._id}`);
+      expect(deleteOwnRes.status).toBe(400);
+      expect(deleteOwnRes.body.error).toContain('Cannot delete your own account');
+
       // Update non-existent user
       const updateNonExistent = await editorAgent.put(`/api/users/${new mongoose.Types.ObjectId()}`).send({ fullName: 'Nobody' });
       expect(updateNonExistent.status).toBe(404);
