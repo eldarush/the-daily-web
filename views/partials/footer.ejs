@@ -1,6 +1,17 @@
-<footer class="site-footer">
-  <div class="footer-inner">
-    <p class="footer-copy">&copy; <%= new Date().getFullYear() %> The Daily Web. All rights reserved.</p>
-    <p class="footer-meta">Built strictly with Vanilla Web Technologies &bull; Express MVC Architecture</p>
+    </main>
+
+    <aside class="site-sidebar" id="site-sidebar">
+      <%- include('./weather-widget') %>
+    </aside>
   </div>
-</footer>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p class="footer-copy">&copy; <%= new Date().getFullYear() %> The Daily Web. All rights reserved.</p>
+      <p class="footer-meta">Built strictly with Vanilla Web Technologies &bull; Express MVC Architecture</p>
+    </div>
+  </footer>
+
+  <script src="/js/weather.js" defer></script>
+</body>
+</html>

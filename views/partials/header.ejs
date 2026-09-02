@@ -8,20 +8,7 @@
   <link rel="stylesheet" href="/css/layout.css">
 </head>
 <body>
-  <%- include('../partials/navbar') %>
+  <%- include('./navbar') %>
 
   <div class="site-container">
     <main class="main-content" id="main-content">
-      <%- body %>
-    </main>
-
-    <aside class="site-sidebar" id="site-sidebar">
-      <%- include('../partials/weather-widget') %>
-    </aside>
-  </div>
-
-  <%- include('../partials/footer') %>
-
-  <script src="/js/weather.js" defer></script>
-</body>
-</html>

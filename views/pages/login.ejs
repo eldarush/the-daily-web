@@ -1,3 +1,5 @@
+<%- include('../partials/header') %>
+
 <div class="auth-page-wrapper">
   <div class="auth-card">
     <div class="auth-card-header">
@@ -73,7 +75,6 @@
         const data = await response.json();
 
         if (response.ok) {
-          // Redirect based on user role
           if (data.user && data.user.role === 'editor') {
             window.location.href = '/editor';
           } else {
@@ -94,3 +95,5 @@
     });
   }
 </script>
+
+<%- include('../partials/footer') %>
