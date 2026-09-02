@@ -1,6 +1,11 @@
 /**
  * Centralized error handler middleware.
  * Formats JSON or HTML responses and logs operational errors with timestamps.
+ * @param {any} err - Error object thrown or passed to next().
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next callback.
+ * @returns {void}
  */
 function errorHandler(err, req, res, next) {
   const statusCode = err.statusCode || err.status || 500;

@@ -1,3 +1,7 @@
+/**
+ * User administration API routes.
+ * Exposes /api/users endpoints protected by authentication and Editor RBAC.
+ */
 const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');

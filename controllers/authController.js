@@ -2,6 +2,10 @@ const User = require('../models/User');
 
 /**
  * Handles user authentication (login) and session initialization.
+ * @param {import('express').Request} req - Express request object containing body with username and password.
+ * @param {import('express').Response} res - Express response object.
+ * @param {import('express').NextFunction} next - Express next middleware callback.
+ * @returns {Promise<import('express').Response>} JSON response with authenticated user data or error.
  */
 async function login(req, res, next) {
   try {
@@ -34,6 +38,10 @@ async function login(req, res, next) {
 
 /**
  * Destroys current session and clears the session cookie.
+ * @param {import('express').Request} req - Express request object with active session.
+ * @param {import('express').Response} res - Express response object.
+ * @param {import('express').NextFunction} next - Express next middleware callback.
+ * @returns {void}
  */
 function logout(req, res, next) {
   req.session.destroy((err) => {
@@ -44,7 +52,10 @@ function logout(req, res, next) {
 }
 
 /**
- * Returns current authenticated session user.
+ * Returns current authenticated session user profile.
+ * @param {import('express').Request} req - Express request object containing session.
+ * @param {import('express').Response} res - Express response object.
+ * @returns {import('express').Response} JSON response with session user or 401.
  */
 function getCurrentUser(req, res) {
   if (req.session && req.session.user) {

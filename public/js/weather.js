@@ -31,18 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
         cacheStatusEl.textContent = data.cached ? 'Cached (15m)' : 'Live Update';
       }
 
-      // Map icon to emoji if needed
       if (iconEl) {
-        const iconCode = data.icon || '01d';
-        let emoji = '🌤️';
-        if (iconCode.startsWith('01')) emoji = '☀️';
-        else if (iconCode.startsWith('02')) emoji = '⛅';
-        else if (iconCode.startsWith('03') || iconCode.startsWith('04')) emoji = '☁️';
-        else if (iconCode.startsWith('09') || iconCode.startsWith('10')) emoji = '🌧️';
-        else if (iconCode.startsWith('11')) emoji = '⛈️';
-        else if (iconCode.startsWith('13')) emoji = '❄️';
-        else if (iconCode.startsWith('50')) emoji = '🌫️';
-        iconEl.textContent = emoji;
+        iconEl.textContent = data.description || 'Current';
       }
 
       if (updatedEl) {
@@ -56,6 +46,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   loadWeather();
-  // Poll periodically every 5 minutes (well within 15-minute server cache)
   setInterval(loadWeather, 5 * 60 * 1000);
 });

@@ -417,15 +417,43 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       expect(nextFn).toHaveBeenCalled();
     });
 
-    test('requireRole handles session present without user object for web and api', () => {
+    test('requireRole handles web 403 and api path 403', () => {
       const { requireRole } = require('../../middlewares/rbac');
-      const resWeb = { redirect: jest.fn() };
-      requireRole('reporter')({ session: {}, headers: {} }, resWeb, jest.fn());
-      expect(resWeb.redirect).toHaveBeenCalledWith('/login');
 
-      const resApi = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-      requireRole('reporter')({ session: {}, originalUrl: '/api/test', headers: {} }, resApi, jest.fn());
-      expect(resApi.status).toHaveBeenCalledWith(401);
+      // Web forbidden render
+      const resWeb403 = { status: jest.fn().mockReturnThis(), render: jest.fn() };
+      requireRole('editor')({ session: { user: { role: 'reporter' } }, originalUrl: '/editor-hub', headers: {} }, resWeb403, jest.fn());
+      expect(resWeb403.status).toHaveBeenCalledWith(403);
+      expect(resWeb403.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ title: 'Access Denied' }));
+
+      // API path forbidden JSON
+      const resApiPath = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      requireRole('editor')({ session: { user: { role: 'reporter' } }, path: '/api/admin', headers: {} }, resApiPath, jest.fn());
+      expect(resApiPath.status).toHaveBeenCalledWith(403);
+    });
+
+    test('requireRole handles unauthenticated web and api requests with and without session', () => {
+      const { requireRole } = require('../../middlewares/rbac');
+
+      // 1. No session at all, web request -> redirect to /login
+      const resWebNoSession = { redirect: jest.fn() };
+      requireRole('reporter')({ headers: {} }, resWebNoSession, jest.fn());
+      expect(resWebNoSession.redirect).toHaveBeenCalledWith('/login');
+
+      // 2. No session at all, api request -> 401 JSON
+      const resApiNoSession = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      requireRole('reporter')({ originalUrl: '/api/test', headers: {} }, resApiNoSession, jest.fn());
+      expect(resApiNoSession.status).toHaveBeenCalledWith(401);
+
+      // 3. Session present but no user, web request -> redirect to /login
+      const resWebEmptySession = { redirect: jest.fn() };
+      requireRole('reporter')({ session: {}, headers: {} }, resWebEmptySession, jest.fn());
+      expect(resWebEmptySession.redirect).toHaveBeenCalledWith('/login');
+
+      // 4. Session present but no user, api request -> 401 JSON
+      const resApiEmptySession = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      requireRole('reporter')({ session: {}, originalUrl: '/api/test', headers: {} }, resApiEmptySession, jest.fn());
+      expect(resApiEmptySession.status).toHaveBeenCalledWith(401);
     });
 
     test('authController and userController branch edge cases', async () => {
@@ -508,6 +536,19 @@ describe('Eldar Module 1: Core Auth, User CRUD & Weather Service', () => {
       await weatherController.getWeather({}, {}, nextWeatherErr);
       expect(nextWeatherErr).toHaveBeenCalledWith(expect.any(Error));
       weatherController.fetchWeather = origFetchWeather;
+
+      // 6. getWeather with custom process.env.WEATHER_CITY and default fallback
+      weatherController.resetWeatherCache();
+      process.env.WEATHER_CITY = 'Haifa';
+      const resCustomCity = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      await weatherController.getWeather({}, resCustomCity, jest.fn());
+      expect(resCustomCity.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Haifa' }));
+
+      weatherController.resetWeatherCache();
+      delete process.env.WEATHER_CITY;
+      const resDefCity = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      await weatherController.getWeather({}, resDefCity, jest.fn());
+      expect(resDefCity.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Tel Aviv' }));
 
       global.fetch = origFetch;
     });

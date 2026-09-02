@@ -1,8 +1,16 @@
+/**
+ * Application entrypoint.
+ * Boots the HTTP server and manages graceful process termination.
+ */
 const app = require('./app');
 const { connectDB, disconnectDB } = require('./config/db');
 
 const PORT = process.env.PORT || 3000;
 
+/**
+ * Connects to MongoDB, starts Express HTTP listener, and sets up termination hooks.
+ * @returns {Promise<void>}
+ */
 async function startServer() {
   try {
     await connectDB();

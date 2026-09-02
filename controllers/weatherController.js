@@ -7,9 +7,9 @@ let weatherCache = {
 
 /**
  * Fetches current weather from external OpenWeatherMap API or returns realistic fallback.
- * @param {string} city 
- * @param {string} apiKey 
- * @returns {Promise<object>}
+ * @param {string} [city] - Target city name (defaults to Tel Aviv).
+ * @param {string} [apiKey] - OpenWeatherMap API key.
+ * @returns {Promise<{ city: string, temp: number, description: string, icon: string, cached: boolean }>} Weather payload.
  */
 async function fetchWeather(city, apiKey) {
   if (apiKey && apiKey.trim().length > 0) {
@@ -43,6 +43,10 @@ async function fetchWeather(city, apiKey) {
 
 /**
  * Weather endpoint handler with strict 15-minute server-side caching.
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ * @returns {Promise<import('express').Response>} JSON weather response.
  */
 async function getWeather(req, res, next) {
   try {
@@ -68,13 +72,17 @@ async function getWeather(req, res, next) {
 
 /**
  * Resets weather cache (used in automated unit testing).
+ * @returns {void}
  */
 function resetWeatherCache() {
-  weatherCache = { data: null, lastFetched: 0 };
+  weatherCache = {
+    data: null,
+    lastFetched: 0
+  };
 }
 
 module.exports = {
-  getWeather,
   fetchWeather,
+  getWeather,
   resetWeatherCache
 };

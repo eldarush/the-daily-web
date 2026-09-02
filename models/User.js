@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
+/**
+ * User schema definition.
+ * Enforces role assignment (reporter, editor) and unique username.
+ */
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -31,19 +35,28 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Pre-save hook: Hash password securely with salt rounds = 12
+/**
+ * Pre-save middleware: Hashes the password securely with bcrypt (salt 12).
+ */
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-// Instance method to verify password
+/**
+ * Verifies candidate password against stored bcrypt hash.
+ * @param {string} candidatePassword - Plaintext password to test.
+ * @returns {Promise<boolean>} True if matching, false otherwise.
+ */
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Return safe user object (excluding hashed password)
+/**
+ * Serializes user document into a safe representation without password hash.
+ * @returns {{ id: any, username: string, fullName: string, role: string, createdAt: Date }}
+ */
 userSchema.methods.toSafeObject = function() {
   return {
     id: this._id,

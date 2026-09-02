@@ -1,6 +1,10 @@
 /**
  * Middleware ensuring user is authenticated via active session.
  * Rejects unauthenticated requests with HTTP 401 (API) or redirects to /login (Web).
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next callback.
+ * @returns {void}
  */
 function requireAuth(req, res, next) {
   if (req.session && req.session.user) {

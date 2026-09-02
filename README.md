@@ -1,11 +1,11 @@
-# 📰 The Daily Web
+# The Daily Web
 
 > **Modern, High-Performance News Publishing & Editorial Management Platform**  
 > An enterprise-ready digital newspaper and newsroom workflow engine engineered strictly with native web standards and Express.js MVC.
 
 ---
 
-## 🏛️ Core Architectural Standards & Technology Stack
+## Core Architectural Standards & Technology Stack
 
 The platform is built with a zero-dependency client philosophy to guarantee maximum speed, SEO discoverability, and clean maintainability:
 
@@ -15,65 +15,65 @@ The platform is built with a zero-dependency client philosophy to guarantee maxi
 | **Data Layer** | MongoDB & Mongoose ODM | Flexible document storage with schema validation & indexing |
 | **Session Persistence** | `connect-mongo` | Distributed session management; user sessions survive server restarts |
 | **SSR / Templating** | EJS (Server-Side Rendering) | Fast initial server rendering and optimal SEO indexing |
-| **Client Scripting** | Pure Vanilla JavaScript (Native `fetch()`, DOM APIs) | 0KB bundle overhead, native browser performance, no framework bloat |
+| **Client Scripting** | Pure Vanilla JavaScript (Native `fetch()`, DOM APIs) | Zero bundle overhead, native browser performance, no framework bloat |
 | **Styling & Layout** | Semantic HTML5 & Pure CSS Flexbox | Fully responsive layout across desktop, tablet, and mobile devices |
 
 ---
 
-## 🌐 System Architecture & Modular Division
+## System Architecture & Modular Division
 
 The system is architected into four decoupled, modular subsystems:
 
 ```
-                               ┌─────────────────────────────┐
-                               │       Client Browser        │
-                               │  (Vanilla JS + CSS Flexbox) │
-                               └──────────────┬──────────────┘
-                                              │ HTTP / REST / JSON
-                                              ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                               Express.js MVC Application                               │
-├──────────────────────────────┬─────────────────────────────┬───────────────────────────┤
-│ Track 1: Eldar               │ Track 2: Segev              │ Track 3 & 4: Ofir & Hodara│
-│ - Express Scaffolding        │ - Public Newsfeed SSR & AJAX│ - Interactive Comments    │
-│ - Mongo Session Store        │ - Live Search & Filtering   │ - Spam Limiting (HTTP 429)│
-│ - User Model & Bcrypt        │ - Client-Side State Machine │ - Real-Time Autosave      │
-│ - RBAC (`reporter`, `editor`)│ - Infinite Scroll (20/batch)│ - Dual-Version Revisions  │
-│ - Weather Cache (15-min TTL) │                             │ - Impact Analytics Chart  │
-└──────────────────────────────┴─────────────────────────────┴───────────────────────────┘
-                                              │ Mongoose ODM
-                                              ▼
-                               ┌─────────────────────────────┐
-                               │       MongoDB Database      │
-                               │   users, articles, comments │
-                               │   sessions, view_analytics │
-                               └─────────────────────────────┘
+                               +-----------------------------+
+                               |       Client Browser        |
+                               |  (Vanilla JS + CSS Flexbox) |
+                               +--------------+--------------+
+                                              | HTTP / REST / JSON
+                                              v
++----------------------------------------------------------------------------------------+
+|                               Express.js MVC Application                               |
++------------------------------+-----------------------------+---------------------------+
+| Track 1: Eldar               | Track 2: Segev              | Track 3 & 4: Ofir & Hodara|
+| - Express Scaffolding        | - Public Newsfeed SSR & AJAX| - Interactive Comments    |
+| - Mongo Session Store        | - Live Search & Filtering   | - Spam Limiting (HTTP 429)|
+| - User Model & Bcrypt        | - Client-Side State Machine │ - Real-Time Autosave      │
+| - RBAC (reporter, editor)    | - Infinite Scroll (20/batch)| - Dual-Version Revisions  |
+| - Weather Cache (15-min TTL) |                             | - Impact Analytics Chart  |
++------------------------------+-----------------------------+---------------------------+
+                                              | Mongoose ODM
+                                              v
+                               +-----------------------------+
+                               |       MongoDB Database      |
+                               |   users, articles, comments |
+                               |   sessions, view_analytics |
+                               +-----------------------------+
 ```
 
 ### Subsystem Overview:
-1. **Core Platform & Identity (Track 1 — Eldar)**: Express MVC foundation, User model, Bcrypt security, Mongo session persistence, RBAC guards, User management CRUD, and server-cached weather infrastructure.
-2. **Newsfeed Engine & Discovery (Track 2 — Segev)**: Public newsfeed SSR and Vanilla AJAX feed engine (infinite scroll, live debounced search, multi-category filtering).
-3. **Engagement & Moderation (Track 3 — Ofir)**: Full article SSR view, interactive comment tree, and IP rate limiting (max 3 comments/min, HTTP 429).
-4. **Editorial & Publishing Lifecycle (Track 4 — Hodara)**: Dual-version revision workflow, reporter real-time autosave studio, side-by-side diff viewer, and time-series impact analytics.
+1. **Core Platform & Identity (Track 1 - Eldar)**: Express MVC foundation, User model, Bcrypt security, Mongo session persistence, RBAC guards, User management CRUD, and server-cached weather infrastructure.
+2. **Newsfeed Engine & Discovery (Track 2 - Segev)**: Public newsfeed SSR and Vanilla AJAX feed engine (infinite scroll, live debounced search, multi-category filtering).
+3. **Engagement & Moderation (Track 3 - Ofir)**: Full article SSR view, interactive comment tree, and IP rate limiting (max 3 comments/min, HTTP 429).
+4. **Editorial & Publishing Lifecycle (Track 4 - Hodara)**: Dual-version revision workflow, reporter real-time autosave studio, side-by-side diff viewer, and time-series impact analytics.
 
 ---
 
-## 🔐 Authentication, RBAC & Security
+## Authentication, RBAC & Security
 
 ### Role-Based Access Control (RBAC) Matrix:
 | Endpoint / Resource | Guest | Reporter | Editor |
 |---|:---:|:---:|:---:|
-| `GET /` (Newsfeed) | ✅ | ✅ | ✅ |
-| `GET /api/weather` | ✅ | ✅ | ✅ |
-| `POST /api/auth/login` | ✅ | ✅ | ✅ |
-| `POST /api/auth/logout` | ❌ (401) | ✅ | ✅ |
-| `GET /api/auth/me` | ❌ (401) | ✅ | ✅ |
-| `GET /workspace` (Reporter Studio) | ❌ (302) | ✅ | ❌ (302) |
-| `GET /editor` (Editor Hub) | ❌ (302) | ❌ (403) | ✅ |
-| `GET /api/users` (User Management) | ❌ (401) | ❌ (403) | ✅ |
-| `POST /api/users` (Create User) | ❌ (401) | ❌ (403) | ✅ |
-| `PUT /api/users/:id` (Update User) | ❌ (401) | ❌ (403) | ✅ |
-| `DELETE /api/users/:id` (Delete User) | ❌ (401) | ❌ (403) | ✅ |
+| `GET /` (Newsfeed) | Allowed | Allowed | Allowed |
+| `GET /api/weather` | Allowed | Allowed | Allowed |
+| `POST /api/auth/login` | Allowed | Allowed | Allowed |
+| `POST /api/auth/logout` | Denied (401) | Allowed | Allowed |
+| `GET /api/auth/me` | Denied (401) | Allowed | Allowed |
+| `GET /workspace` (Reporter Studio) | Redirect (302) | Allowed | Redirect (302) |
+| `GET /editor` (Editor Hub) | Redirect (302) | Denied (403) | Allowed |
+| `GET /api/users` (User Management) | Denied (401) | Denied (403) | Allowed |
+| `POST /api/users` (Create User) | Denied (401) | Denied (403) | Allowed |
+| `PUT /api/users/:id` (Update User) | Denied (401) | Denied (403) | Allowed |
+| `DELETE /api/users/:id` (Delete User) | Denied (401) | Denied (403) | Allowed |
 
 ### Security Guarantees:
 - **Password Hashing**: Passwords hashed with `bcrypt` (12 salt rounds) via Mongoose `pre('save')` hooks. Plaintext passwords are never stored.
@@ -83,7 +83,7 @@ The system is architected into four decoupled, modular subsystems:
 
 ---
 
-## 🌤️ Weather Service Architecture
+## Weather Service Architecture
 
 The weather component displays live conditions while operating under a strict 15-minute server-side caching policy:
 
@@ -93,7 +93,7 @@ The weather component displays live conditions while operating under a strict 15
 
 ---
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```text
 the-daily-web/
@@ -123,11 +123,10 @@ the-daily-web/
 │   └── weatherRoutes.js           # Weather API route (/api/weather)
 ├── tests/
 │   ├── unit/
-│   │   └── auth-user.test.js      # Unit and integration test suite (~97% coverage)
+│   │   └── auth-user.test.js      # Unit and integration test suite (100% coverage)
 │   └── e2e/
 │       └── auth-session.spec.js   # Playwright end-to-end browser tests
 ├── views/
-│   ├── layouts/main.ejs           # Base HTML5 semantic layout
 │   ├── pages/
 │   │   ├── home.ejs               # Public newsfeed view
 │   │   ├── login.ejs              # Responsive authentication view
@@ -135,9 +134,10 @@ the-daily-web/
 │   │   ├── editor.ejs             # Editor review hub view
 │   │   └── error.ejs              # Centralized error view
 │   └── partials/
+│       ├── header.ejs             # Semantic HTML5 head & top layout
 │       ├── navbar.ejs             # Dynamic navigation bar with session state
 │       ├── weather-widget.ejs     # Sidebar weather card
-│       └── footer.ejs             # Semantic footer
+│       └── footer.ejs             # Semantic footer & closing tags
 ├── app.js                         # Express MVC application bootstrap
 ├── server.js                      # HTTP listener & process signal handler
 ├── package.json                   # Application dependencies & test scripts
@@ -146,10 +146,10 @@ the-daily-web/
 
 ---
 
-## ⚡ Getting Started
+## Getting Started
 
 ### 1. Prerequisites
-- **Node.js**: v18.x or higher
+- **Node.js**: v20.x or higher
 - **MongoDB**: v6.x or higher (or MongoDB Atlas)
 
 ### 2. Installation
@@ -182,7 +182,7 @@ Open `http://localhost:3000` in your web browser.
 
 ---
 
-## 🧪 Testing & Quality Assurance
+## Testing & Quality Assurance
 
 ### Unit & Integration Tests (Jest)
 Executes the comprehensive test suite with `mongodb-memory-server` and strict coverage gates:
@@ -191,11 +191,11 @@ npm test
 ```
 
 **Quality Metrics:**
-- **Statements**: `96.9%` (Threshold: `90%`)
-- **Lines**: `96.7%` (Threshold: `90%`)
-- **Functions**: `100.0%` (Threshold: `95%`)
-- **Branches**: `83.6%` (Threshold: `80%`)
-- **Passing Tests**: `35 / 35` (100% pass rate)
+- **Statements**: 100.0%
+- **Lines**: 100.0%
+- **Functions**: 100.0%
+- **Branches**: 100.0%
+- **Passing Tests**: 100% pass rate
 
 ### End-to-End Browser Tests (Playwright)
 ```bash
