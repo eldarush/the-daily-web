@@ -179,10 +179,10 @@ Executes headless browser tests validating login workflows, session persistence,
 
 ---
 
-## Module 4 — Publishing Workflow, Diff Viewer & Impact Analytics
+## Publishing Workflow, Diff Viewer & Impact Analytics
 
-Owns the `Article` and `ViewAnalytics` models and the reporter/editor/analytics
-surface built on top of the shared foundation (User, auth, RBAC, sessions).
+The `Article` and `ViewAnalytics` models support the publishing workflow and
+analytics, using the shared authentication, roles and sessions.
 
 ### Features
 - **Continuous autosave** — the reporter workspace (`/workspace`) saves on every
@@ -229,3 +229,75 @@ Generates 4 reporters + 1 editor (password `password123`), 520 articles across
 all 7 categories and all 4 states, 168 hours of hourly view curves with
 post-update bumps, update histories, and 15 live articles with a staged revision
 for the diff demo.
+
+---
+
+## Public News Feed
+
+- The home page renders the first 20 published articles in EJS.
+- Native `fetch()` updates search, categories, reading filters and sorting without
+  refreshing the page. `IntersectionObserver` loads the next 20 near the bottom.
+- Search matches literal text in titles and summaries, ignoring case. Search is
+  debounced by 300 ms and limited to 100 characters.
+- Read/unread filtering happens before database pagination. Article visits are
+  remembered in `localStorage.the_daily_web_viewed_ids` on the reader's browser.
+- Responses include only public card fields and the author's name, never staged
+  edits, editorial notes, full bodies or passwords.
+- Date/popularity sorting uses `_id` to break ties and compound MongoDB indexes.
+- Loading failures show Retry, and old responses cannot overwrite newer filters.
+- The Flexbox cards adapt to desktop/mobile and show a fallback for failed images.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/` | Initial home page and first batch |
+| `GET` | `/api/articles` | Public feed search and pagination |
+| `POST` | `/api/articles/search` | Same search using JSON for large reading histories |
+
+Both API routes accept `page` (positive integer), `limit` (always `"20"`),
+`category` (`all` or a model category), `search`, `sort` (`date`/`popularity`),
+`viewedFilter` (`all`/`viewed`/`unviewed`) and `viewedIds` (comma-separated article
+IDs). JSON parameter values are strings, just like query-string values.
+The response is `{ articles, page, limit, total, hasMore }`. Invalid filters return
+400. The final batch may contain fewer than 20 articles. Reading filters use POST
+in the browser so thousands of IDs do not exceed HTTP URL limits; JSON is bounded
+to 1 MB. No additional packages are required.
+
+### Files
+
+- `controllers/feedController.js`: shared validated query and home rendering.
+- `routes/api/feedRoutes.js`, `routes/webRoutes.js`: API and home routes.
+- `views/pages/home.ejs`, `views/partials/feed-card.ejs`: page and card template.
+- `public/js/newsfeed.js`: AJAX, scrolling, safe card creation and reading history.
+- `public/css/newsfeed.css`: responsive Flexbox styles.
+- `tests/unit/feed-filter.test.js`, `tests/e2e/newsfeed.spec.js`: isolated fixtures.
+
+### Testing
+
+`npm test` creates temporary in-memory MongoDB databases. Browser tests require
+an **empty dedicated test database**, not the seeded demonstration database:
+
+```bash
+MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web_test npm run test:e2e
+```
+
+On PowerShell, set the variable first:
+
+```powershell
+$env:MONGODB_URI = "mongodb://127.0.0.1:27017/the_daily_web_test"
+npm run test:e2e
+```
+
+Install Chromium once with `npx playwright install chromium`. Test fixtures remove
+only their own articles and users. The article-view integration test uses a page
+fixture to verify the shared markup contract.
+
+### Integration
+
+The article route is `/articles/:id`. The article wrapper uses
+`class="article-detail-container"` and `data-article-id="..."`.
+The shared footer loads `newsfeed.js`, which records visits to this
+wrapper and safely returns on pages without a feed. Reading history belongs to
+this browser/device; it is not a login permission or a cross-device feature.
+
+See the [news feed technical guide](docs/NEWS_FEED.md) for the request flow,
+implementation details and integration checks.

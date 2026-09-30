@@ -84,7 +84,10 @@ const articleSchema = new mongoose.Schema(
 articleSchema.index({ title: 'text', summary: 'text', content: 'text' });
 
 // Compound index backing the paginated "latest first" feed and reporter lists.
-articleSchema.index({ status: 1, publishedAt: -1 });
+articleSchema.index({ status: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, category: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, viewsCount: -1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, category: 1, viewsCount: -1, publishedAt: -1, _id: -1 });
 
 const Article = mongoose.model('Article', articleSchema);
 
