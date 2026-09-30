@@ -10,6 +10,7 @@ function badRequest(message) {
 }
 
 async function loadFeed(query) {
+  if (Array.isArray(query)) badRequest('Filters must be a JSON object.');
   const {
     page = '1', limit = '20', category = 'all', search = '',
     sort = 'date', viewedFilter = 'all', viewedIds = ''
@@ -59,7 +60,7 @@ async function loadFeed(query) {
 
 async function getFeedArticles(req, res, next) {
   try {
-    res.json(await loadFeed(req.query));
+    res.json(await loadFeed(req.method === 'POST' ? req.body : req.query));
   } catch (error) {
     next(error);
   }

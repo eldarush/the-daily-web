@@ -7,7 +7,8 @@ let author;
 let articles;
 
 test.beforeAll(async () => {
-  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web');
+  if (!process.env.MONGODB_URI) throw new Error('Set MONGODB_URI to an empty test database before running E2E tests.');
+  await mongoose.connect(process.env.MONGODB_URI);
   author = await User.create({ username: 'e2e_feed_author', password: 'password123', fullName: 'Feed Author' });
   articles = await Article.insertMany(Array.from({ length: 65 }, (_, i) => ({
     title: i === 0 ? '<img src=x onerror="window.feedXss=1">' : `Feed demo ${i}`,
@@ -132,4 +133,15 @@ test('mobile layout has no horizontal overflow and filters remain usable', async
   await page.locator('[data-category="Sports"]').click();
   await expect(page.locator('#articles-grid .article-card')).toHaveCount(20);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('read filtering supports thousands of stored article IDs', async ({ page }) => {
+  await page.goto('/');
+  const ids = articles.map(article => article.id);
+  for (let i = 0; ids.length < 5000; i++) ids.push(i.toString(16).padStart(24, '0'));
+  await page.evaluate(history => localStorage.setItem('the_daily_web_viewed_ids', JSON.stringify(history)), ids);
+  await page.locator('#viewed-filter').selectOption('viewed');
+  await expect(page.locator('#feed-status')).toHaveText('65 articles · 20 shown');
+  await expect(page.locator('#articles-grid .article-card')).toHaveCount(20);
+  await expect(page.locator('#feed-error')).toBeHidden();
 });

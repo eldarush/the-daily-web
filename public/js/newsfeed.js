@@ -86,6 +86,7 @@
       state.hasMore = true;
       grid.replaceChildren();
       empty.hidden = true;
+      status.textContent = 'Loading articles…';
     }
     const nextPage = state.page + 1;
     state.loading = true;
@@ -95,15 +96,24 @@
     moreButton.hidden = true;
     grid.setAttribute('aria-busy', 'true');
 
-    const params = new URLSearchParams({
-      page: nextPage, limit: 20, category: state.category, search: search.value.trim(),
+    const query = {
+      page: String(nextPage), limit: '20', category: state.category, search: search.value.trim(),
       sort: sort.value, viewedFilter: readingFilter.value
-    });
-    if (readingFilter.value !== 'all') params.set('viewedIds', getViewedIds().join(','));
+    };
+    let url = '/api/articles?' + new URLSearchParams(query);
+    let options = {};
+    if (readingFilter.value !== 'all') {
+      query.viewedIds = getViewedIds().join(',');
+      url = '/api/articles/search';
+      options = {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(query)
+      };
+    }
 
     let succeeded = false;
     try {
-      const response = await fetch('/api/articles?' + params);
+      const response = await fetch(url, options);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load articles. Please try again.');
       // A newer filter request takes priority over a slower, older response.
@@ -119,6 +129,7 @@
       if (currentRequest !== requestNumber) return;
       errorMessage.textContent = error.message;
       errorMessage.hidden = false;
+      if (!grid.children.length) status.textContent = 'Articles could not be loaded.';
     } finally {
       if (currentRequest === requestNumber) {
         state.loading = false;
