@@ -119,6 +119,25 @@ test('empty reading history means zero read articles and all unread articles', a
   expect(unread.body.total).toBe(45);
 });
 
+test('a large reading history can be searched in JSON without a long URL', async () => {
+  const ids = articles.map(article => article.id);
+  while (ids.length < 5000) ids.push(new mongoose.Types.ObjectId().toString());
+  const res = await request(app).post('/api/articles/search').send({
+    viewedFilter: 'viewed', viewedIds: ids.join(','), page: '2'
+  });
+  expect(res.status).toBe(200);
+  expect(res.body.total).toBe(45);
+  expect(res.body.articles).toHaveLength(20);
+});
+
+test('JSON search rejects malformed filters and non-object bodies', async () => {
+  for (const body of [{ viewedFilter: 'viewed', viewedIds: 'invalid' }, ['invalid']]) {
+    const res = await request(app).post('/api/articles/search').send(body);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toEqual(expect.any(String));
+  }
+});
+
 test.each([
   { page: '0' }, { page: '-1' }, { page: '1.5' }, { page: 'abc' },
   { page: '9007199254740992' }, { limit: '50' }, { category: 'Unknown' },
