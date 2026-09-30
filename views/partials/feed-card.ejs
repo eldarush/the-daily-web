@@ -1,0 +1,19 @@
+<article class="article-card" data-article-id="<%= article._id || '' %>">
+  <div class="card-image-wrapper">
+    <span class="image-placeholder" aria-hidden="true">The Daily Web</span>
+    <img class="card-image" src="<%= article.imageUrl || '/images/default-article.jpg' %>" alt="<%= article.title || '' %>" loading="lazy">
+  </div>
+  <div class="card-body">
+    <div class="card-labels">
+      <span class="card-category"><%= article.category || '' %></span>
+      <span class="read-badge" hidden>Read</span>
+    </div>
+    <h2><a class="card-title-link" href="/articles/<%= article._id || '' %>"><%= article.title || '' %></a></h2>
+    <p class="card-summary"><%= article.summary || '' %></p>
+    <div class="card-footer">
+      <span class="card-author">By <%= article.author ? article.author.fullName : 'Staff Reporter' %></span>
+      <time class="card-date" datetime="<%= article.publishedAt ? new Date(article.publishedAt).toISOString() : '' %>"><%= article.publishedAt ? new Date(article.publishedAt).toLocaleDateString('en-GB') : '' %></time>
+      <span class="card-views"><%= article.viewsCount || 0 %> views</span>
+    </div>
+  </div>
+</article>

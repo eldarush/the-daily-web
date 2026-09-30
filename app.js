@@ -14,6 +14,8 @@ const weatherRoutes = require('./routes/api/weatherRoutes');
 const reporterRoutes = require('./routes/api/reporterRoutes');
 const editorRoutes = require('./routes/api/editorRoutes');
 const analyticsRoutes = require('./routes/api/analyticsRoutes');
+const feedRoutes = require('./routes/api/feedRoutes');
+const webRoutes = require('./routes/webRoutes');
 
 const app = express();
 
@@ -39,6 +41,7 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/reporter', reporterRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/articles', feedRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
@@ -52,12 +55,7 @@ app.get('/login', (req, res) => {
   });
 });
 
-app.get('/', (req, res) => {
-  res.render('pages/home', {
-    title: 'The Daily Web - Home',
-    articles: []
-  });
-});
+app.use('/', webRoutes);
 
 app.get('/workspace', (req, res) => {
   if (!req.session || !req.session.user) {
