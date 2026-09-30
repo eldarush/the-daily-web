@@ -1,14 +1,57 @@
 <%- include('../partials/header') %>
 
-<div class="page-header">
-  <h1>Breaking News & Top Stories</h1>
-  <p class="subtitle">Real-time reporting powered by The Daily Web</p>
-</div>
+<link rel="stylesheet" href="/css/newsfeed.css">
 
-<div class="newsfeed-placeholder" id="newsfeed-root">
-  <div class="info-banner">
-    <p>Welcome to The Daily Web. The newsfeed is populated with approved articles.</p>
-  </div>
+<div class="feed-page">
+  <header class="feed-header">
+    <p class="feed-eyebrow">The Daily Web</p>
+    <h1>Breaking News &amp; Top Stories</h1>
+    <p>Explore the latest reporting from our newsroom.</p>
+  </header>
+
+  <section class="newsfeed-controls" aria-label="Filter articles">
+    <label for="feed-search">Search headlines and summaries</label>
+    <input type="search" id="feed-search" placeholder="Search news…" maxlength="100" autocomplete="off">
+    <div id="category-tabs" class="category-tabs" aria-label="Categories">
+      <button type="button" class="cat-pill active" data-category="all" aria-pressed="true">All</button>
+      <% categories.forEach(category => { %>
+        <button type="button" class="cat-pill" data-category="<%= category %>" aria-pressed="false"><%= category %></button>
+      <% }) %>
+    </div>
+    <div class="filter-dropdowns">
+      <label for="viewed-filter">Reading status
+        <select id="viewed-filter">
+          <option value="all">All articles</option>
+          <option value="unviewed">Unread only</option>
+          <option value="viewed">Read only</option>
+        </select>
+      </label>
+      <label for="feed-sort">Sort by
+        <select id="feed-sort">
+          <option value="date">Latest first</option>
+          <option value="popularity">Most popular</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <p id="feed-status" class="feed-status" role="status"><%= total %> articles</p>
+  <section id="articles-grid" class="newsfeed-grid" aria-label="News articles" data-has-more="<%= hasMore %>" aria-busy="false">
+    <% articles.forEach(article => { %>
+      <%- include('../partials/feed-card', { article }) %>
+    <% }) %>
+  </section>
+  <p id="empty-feed" class="feed-message" <%= total ? 'hidden' : '' %>>No articles match your filters.</p>
+  <div id="infinite-scroll-sentinel" aria-hidden="true"></div>
+  <p id="loading-spinner" class="feed-message" hidden>Loading articles…</p>
+  <p id="feed-error" class="feed-message" role="alert" hidden></p>
+  <button id="load-more" class="btn btn-outline" type="button" <%= hasMore ? '' : 'hidden' %>>Load more</button>
+  <p id="end-of-feed-msg" class="feed-message" <%= hasMore || !total ? 'hidden' : '' %>>You have reached the end of the newsfeed.</p>
+  <noscript><p>Enable JavaScript for search, filters and more articles.</p></noscript>
+
+  <template id="article-card-template">
+    <%- include('../partials/feed-card', { article: {} }) %>
+  </template>
 </div>
 
 <%- include('../partials/footer') %>
