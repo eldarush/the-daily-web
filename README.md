@@ -179,10 +179,10 @@ Executes headless browser tests validating login workflows, session persistence,
 
 ---
 
-## Module 4 — Publishing Workflow, Diff Viewer & Impact Analytics
+## Publishing Workflow, Diff Viewer & Impact Analytics
 
-Owns the `Article` and `ViewAnalytics` models and the reporter/editor/analytics
-surface built on top of the shared foundation (User, auth, RBAC, sessions).
+The `Article` and `ViewAnalytics` models support the publishing workflow and
+analytics, using the shared authentication, roles and sessions.
 
 ### Features
 - **Continuous autosave** — the reporter workspace (`/workspace`) saves on every
@@ -232,7 +232,7 @@ for the diff demo.
 
 ---
 
-## Module 2 — Public News Feed (Segev)
+## Public News Feed
 
 - The home page renders the first 20 published articles in EJS.
 - Native `fetch()` updates search, categories, reading filters and sorting without
@@ -288,16 +288,16 @@ npm run test:e2e
 ```
 
 Install Chromium once with `npx playwright install chromium`. Test fixtures remove
-only their own articles and users. The article-view integration test stubs Ofir's
-page markup; it does not claim that the real article/comments module is complete.
+only their own articles and users. The article-view integration test uses a page
+fixture to verify the shared markup contract.
 
 ### Integration
 
-Ofir's article route remains `/articles/:id`. The article wrapper must use
-`class="article-detail-container"` and `data-article-id="..."`, as specified in
-his plan. The shared footer loads `newsfeed.js`, which records visits to this
+The article route is `/articles/:id`. The article wrapper uses
+`class="article-detail-container"` and `data-article-id="..."`.
+The shared footer loads `newsfeed.js`, which records visits to this
 wrapper and safely returns on pages without a feed. Reading history belongs to
 this browser/device; it is not a login permission or a cross-device feature.
 
-See [Segev's Hebrew defense guide](docs/SEGEV_MODULE.md) for the request flow,
-explanations and current integration findings.
+See the [news feed technical guide](docs/NEWS_FEED.md) for the request flow,
+implementation details and integration checks.

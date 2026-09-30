@@ -100,7 +100,7 @@ test('titles remain text in both SSR and AJAX cards and failed images have a fal
 });
 
 test('a successfully opened article is remembered when returning to the feed', async ({ page }) => {
-  // Ofir owns the article route; this fixture tests the shared markup contract.
+  // This article fixture tests the shared markup contract.
   await page.route(`**/articles/${articles[0].id}`, route => route.fulfill({
     contentType: 'text/html',
     body: `<article class="article-detail-container" data-article-id="${articles[0].id}"><h1>Article</h1></article><script src="/js/newsfeed.js" defer></script>`
