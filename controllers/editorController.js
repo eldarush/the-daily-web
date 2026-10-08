@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const Article = require('../models/Article');
+const Comment = require('../models/Comment');
+const ViewAnalytics = require('../models/ViewAnalytics');
 
 const PAGE_SIZE = 20;
 const EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'imageUrl'];
@@ -10,7 +12,7 @@ const EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'imageUrl'];
  * @returns {Promise<{ article: any, error: { status: number, message: string } | null }>}
  */
 async function loadArticle(articleId) {
-  if (!mongoose.isValidObjectId(articleId)) {
+  if (!mongoose.isObjectIdOrHexString(articleId)) {
     return { article: null, error: { status: 400, message: 'Invalid article id' } };
   }
   const article = await Article.findById(articleId);
@@ -34,7 +36,9 @@ async function listAllArticles(req, res, next) {
       if (!Article.ARTICLE_STATUSES.includes(req.query.status)) {
         return res.status(400).json({ error: 'Invalid status filter' });
       }
-      filter.status = req.query.status;
+      if (['pending', 'rejected', 'draft'].includes(req.query.status)) {
+        filter.$or = [{ status: req.query.status }, { status: 'published', 'pendingUpdate.hasUpdate': true, 'pendingUpdate.status': req.query.status }];
+      } else filter.status = req.query.status;
     }
 
     const [articles, total] = await Promise.all([
@@ -67,6 +71,7 @@ async function getArticleDiff(req, res, next) {
     }
 
     return res.json({
+      status: article.status,
       live: {
         title: article.title,
         summary: article.summary,
@@ -96,6 +101,9 @@ async function editArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
+    if (!req.body || EDITABLE_FIELDS.some(key => req.body[key] !== undefined && typeof req.body[key] !== 'string')) {
+      return res.status(400).json({ error: 'Article fields must be strings' });
+    }
     const fields = {};
     for (const key of EDITABLE_FIELDS) {
       if (req.body[key] !== undefined) {
@@ -107,13 +115,16 @@ async function editArticle(req, res, next) {
     }
 
     if (article.status === 'published') {
+      const previous = article.pendingUpdate.hasUpdate ? article.pendingUpdate : article;
       article.pendingUpdate = {
+        status: article.pendingUpdate.status,
+        editorNotes: article.pendingUpdate.editorNotes || '',
         hasUpdate: true,
-        title: fields.title ?? article.title,
-        summary: fields.summary ?? article.summary,
-        content: fields.content ?? article.content,
-        category: fields.category ?? article.category,
-        imageUrl: fields.imageUrl ?? article.imageUrl,
+        title: fields.title ?? previous.title,
+        summary: fields.summary ?? previous.summary,
+        content: fields.content ?? previous.content,
+        category: fields.category ?? previous.category,
+        imageUrl: fields.imageUrl ?? previous.imageUrl,
         updatedAt: new Date()
       };
     } else {
@@ -137,6 +148,9 @@ async function editArticle(req, res, next) {
  */
 async function approveArticle(req, res, next) {
   try {
+    if (req.body.changelogNote !== undefined && typeof req.body.changelogNote !== 'string') {
+      return res.status(400).json({ error: 'Changelog note must be a string' });
+    }
     const { article, error } = await loadArticle(req.params.id);
     if (error) {
       return res.status(error.status).json({ error: error.message });
@@ -144,7 +158,15 @@ async function approveArticle(req, res, next) {
 
     const hasStagedUpdate = article.pendingUpdate && article.pendingUpdate.hasUpdate;
 
+    const candidate = hasStagedUpdate ? article.pendingUpdate : article;
+    if (!Article.isComplete(candidate)) {
+      return res.status(400).json({ error: 'Title, summary, content and a valid category are required before publication' });
+    }
+
     if (hasStagedUpdate) {
+      if (article.status !== 'published' || article.pendingUpdate.status !== 'pending') {
+        return res.status(400).json({ error: 'Only submitted revisions can be approved' });
+      }
       article.title = article.pendingUpdate.title;
       article.summary = article.pendingUpdate.summary;
       article.content = article.pendingUpdate.content;
@@ -190,12 +212,18 @@ async function rejectArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
-    if (article.status !== 'pending') {
+    const revision = article.status === 'published' && article.pendingUpdate.hasUpdate && article.pendingUpdate.status === 'pending';
+    if (article.status !== 'pending' && !revision) {
       return res.status(400).json({ error: `Cannot reject an article in '${article.status}' state` });
     }
 
-    article.status = 'rejected';
-    article.editorNotes = notes;
+    if (revision) {
+      article.pendingUpdate.status = 'rejected';
+      article.pendingUpdate.editorNotes = notes;
+    } else {
+      article.status = 'rejected';
+      article.editorNotes = notes;
+    }
     await article.save();
     return res.json({ success: true, status: article.status });
   } catch (err) {
@@ -216,6 +244,8 @@ async function deleteArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
+    await Comment.deleteMany({ article: article._id });
+    await ViewAnalytics.deleteMany({ article: article._id });
     await article.deleteOne();
     return res.json({ success: true });
   } catch (err) {

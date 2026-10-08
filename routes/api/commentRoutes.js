@@ -7,12 +7,15 @@ const {requireRole} = require('../../middlewares/rbac');
 
 router.post(
     '/comments',
+    commentController.validatePublicArticle,
+    commentController.validateCommentInput,
     guestCommentLimiter,
     commentController.createComment
 );
 
 router.get(
     '/articles/:articleId/comments',
+    commentController.validatePublicArticle,
     commentController.getComments
 );
 
@@ -21,5 +24,7 @@ router.delete(
     requireRole('editor'),
     commentController.deleteComment
 );
+
+router.put('/comments/:commentId', requireRole('editor'), commentController.updateComment);
 
 module.exports = router;

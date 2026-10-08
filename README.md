@@ -1,303 +1,159 @@
 # The Daily Web
 
-A high-performance news publishing and editorial management platform built with Express.js MVC, MongoDB, and vanilla front-end web standards.
+A news publishing system built with Node.js, Express, MongoDB/Mongoose and EJS.
+The browser uses semantic HTML, responsive CSS/Flexbox, Vanilla JavaScript,
+native `fetch` for Ajax, and canvas for analytics. There is no frontend framework
+or build step.
 
----
+## Install and run
 
-## Architectural Principles
+Requirements: Node.js 22 or newer and a running MongoDB 6 or newer.
 
-The application is built around standard web technologies with zero client-side framework dependencies:
-
-- **Server-Side Rendering**: EJS templates deliver complete HTML pages on initial load for optimal SEO indexing and fast first-contentful-paint.
-- **Client Scripting**: Pure Vanilla JavaScript with native `fetch()` and standard DOM APIs. No client build steps or bulky framework runtimes.
-- **Layout & Presentation**: Semantic HTML5 elements (`header`, `nav`, `main`, `aside`, `footer`) styled with responsive CSS Flexbox.
-- **Session Persistence**: Sessions are backed by MongoDB via `connect-mongo`, surviving server restarts and deployments.
-- **Data Security**: Passwords hashed with `bcrypt` (12 salt rounds) at the model schema level. Outgoing user models never leak password hashes.
-
----
-
-## System Architecture
-
-```
-                       +-----------------------------+
-                       |       Client Browser        |
-                       |  (Vanilla JS + CSS Flexbox) |
-                       +--------------+--------------+
-                                      | HTTP / REST / JSON
-                                      v
-+-------------------------------------------------------------------------------+
-|                           Express.js MVC Application                          |
-+--------------------------+----------------------------+-----------------------+
-| Identity & Access        | Content Delivery           | Editorial Operations  |
-| - Authentication         | - Public Newsfeed SSR      | - Article Workspace   |
-| - Session Store (Mongo)  | - Live AJAX Search         | - Dual-Version Drafts |
-| - RBAC (Reporter/Editor) | - Category Filtering       | - Editorial Reviews   |
-| - Weather Integration    | - Infinite Scroll Batches  | - Reader Analytics    |
-+--------------------------+----------------------------+-----------------------+
-                                      | Mongoose ODM
-                                      v
-                       +-----------------------------+
-                       |       MongoDB Database      |
-                       |   users, articles, comments |
-                       |   sessions, view_analytics |
-                       +-----------------------------+
-```
-
-### Key Modules:
-- **Identity & Access Management**: User authentication, role-based authorization guards, session persistence, and editor user administration.
-- **Content Delivery**: Server-rendered public articles, infinite-scroll newsfeed, live debounced search, and category filtering.
-- **Reader Engagement**: Article discussion threads and IP-based rate limiting to prevent spam submissions.
-- **Editorial Operations**: Dual-version drafting workflows, continuous autosave, editorial review queues, and view impact analytics.
-
----
-
-## Access Control
-
-| Route | Guest | Reporter | Editor |
-|---|:---:|:---:|:---:|
-| `GET /` | Allowed | Allowed | Allowed |
-| `GET /api/weather` | Allowed | Allowed | Allowed |
-| `POST /api/auth/login` | Allowed | Allowed | Allowed |
-| `POST /api/auth/logout` | 401 | Allowed | Allowed |
-| `GET /api/auth/me` | 401 | Allowed | Allowed |
-| `GET /workspace` | Redirect (`/login`) | Allowed | Redirect (`/login`) |
-| `GET /editor` | Redirect (`/login`) | 403 | Allowed |
-| `GET /api/users` | 401 | 403 | Allowed |
-| `POST /api/users` | 401 | 403 | Allowed |
-| `PUT /api/users/:id` | 401 | 403 | Allowed |
-| `DELETE /api/users/:id` | 401 | 403 | Allowed |
-
----
-
-## Weather Service
-
-The platform includes a localized weather service displaying current meteorological conditions:
-- Fetches data from OpenWeatherMap API using server-side caching.
-- Cached in-memory with a 15-minute TTL to respect external rate limits.
-- Automatically serves realistic fallback conditions if external APIs are unreachable.
-
----
-
-## Project Structure
-
-```text
-the-daily-web/
-├── .github/workflows/ci.yml       # GitHub Actions CI pipeline
-├── config/
-│   ├── db.js                      # MongoDB connection manager
-│   └── session.js                 # Session persistence configuration
-├── controllers/
-│   ├── authController.js          # Authentication handlers
-│   ├── userController.js          # User administration CRUD
-│   └── weatherController.js       # Weather service with 15-minute caching
-├── middlewares/
-│   ├── auth.js                    # Session authentication check
-│   ├── rbac.js                    # Role-based access control
-│   └── errorHandler.js            # Centralized error handler
-├── models/
-│   └── User.js                    # User schema and password hashing
-├── public/
-│   ├── css/
-│   │   ├── variables.css          # Color tokens and shared styles
-│   │   └── layout.css             # Flexbox responsive grid
-│   └── js/
-│       └── weather.js             # Vanilla JS weather fetcher
-├── routes/api/
-│   ├── authRoutes.js              # Authentication API endpoints
-│   ├── userRoutes.js              # User management API endpoints
-│   └── weatherRoutes.js           # Weather API endpoint
-├── tests/
-│   ├── unit/
-│   │   └── auth-user.test.js      # Unit and integration test suite
-│   └── e2e/
-│       └── auth-session.spec.js   # Playwright end-to-end browser suite
-├── views/
-│   ├── pages/
-│   │   ├── home.ejs               # Main newsfeed view
-│   │   ├── login.ejs              # Login form view
-│   │   ├── workspace.ejs          # Reporter drafting view
-│   │   ├── editor.ejs             # Editor management hub
-│   │   └── error.ejs              # Error display page
-│   └── partials/
-│       ├── header.ejs             # Global head and opening layout
-│       ├── navbar.ejs             # Top navigation bar
-│       ├── weather-widget.ejs     # Sidebar weather card
-│       └── footer.ejs             # Footer and script loader
-├── app.js                         # Express application setup
-├── server.js                      # Server startup and shutdown handling
-├── package.json                   # Dependencies and scripts
-└── README.md
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js 20 or higher
-- MongoDB 6.0 or higher
-
-### Setup
-
-1. Install dependencies:
 ```bash
-npm install
+npm ci
+cp .env.example .env
 ```
 
-2. Configure environment variables in `.env`:
-```ini
-PORT=3000
-MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web
-SESSION_SECRET=your-secure-session-key
-WEATHER_CITY=Tel Aviv
-OPENWEATHER_API_KEY=your_openweathermap_api_key
-NODE_ENV=development
-```
+Edit `.env`: set `MONGODB_URI` to your own database and replace `SESSION_SECRET`
+with a private random value of at least 32 characters. Keep that value stable
+between restarts. Environment files are ignored by Git.
 
-3. Run the development server:
 ```bash
-npm run dev
+npm start
 ```
 
-The application will be accessible at `http://localhost:3000`.
+Open http://localhost:3000. `npm run dev` runs the existing development watcher.
 
----
+## Demo data
 
-## Running Tests
+Use a dedicated demonstration database: seeding resets articles, comments and
+view statistics, and recreates the five demo accounts.
 
-### Unit and Integration Tests
-```bash
-npm test
-```
-Runs the Jest suite against an in-memory MongoDB instance with full code coverage verification.
-
-### End-to-End Tests
-```bash
-npx playwright test
-```
-Executes headless browser tests validating login workflows, session persistence, and UI component rendering.
-
----
-
-## Publishing Workflow, Diff Viewer & Impact Analytics
-
-The `Article` and `ViewAnalytics` models support the publishing workflow and
-analytics, using the shared authentication, roles and sessions.
-
-### Features
-- **Continuous autosave** — the reporter workspace (`/workspace`) saves on every
-  keystroke (800 ms debounce) to both the server and `localStorage`. No save
-  button. Reloading, closing the tab, or switching machines restores the latest
-  version (server-backed), so work is never lost.
-- **Dual-version publishing** — editing an already-published article stages the
-  changes in `pendingUpdate`. The public keeps seeing the live version until an
-  editor approves; approval promotes the staged fields and records a milestone.
-- **Strict state machine** — `draft → pending`, `pending → published`,
-  `pending → rejected` (with mandatory notes), `rejected → pending`. All other
-  transitions are refused server-side.
-- **Editor hub** (`/editor`) — filterable, paginated table with a review modal:
-  side-by-side **word-level diff** (pure Vanilla JS, no library), inline edit,
-  approve, return-for-corrections, and delete.
-- **Impact Analytics** (`/editor/analytics`) — a pure-Canvas time-series of
-  hourly views with vertical milestone markers at each editor update, so the
-  before/after readership impact is visible. Hover for exact values and the
-  changelog note.
-
-### API (all permission-checked server-side)
-| Method | Endpoint | Role |
-|---|---|---|
-| `GET` | `/api/reporter/articles` | Reporter |
-| `POST` | `/api/reporter/articles` | Reporter |
-| `PUT` | `/api/reporter/articles/:id/autosave` | Reporter |
-| `POST` | `/api/reporter/articles/:id/submit` | Reporter |
-| `GET` | `/api/editor/articles` | Editor |
-| `GET` | `/api/editor/articles/:id/diff` | Editor |
-| `PUT` | `/api/editor/articles/:id` | Editor |
-| `POST` | `/api/editor/articles/:id/approve` | Editor |
-| `POST` | `/api/editor/articles/:id/reject` | Editor |
-| `DELETE` | `/api/editor/articles/:id` | Editor |
-| `GET` | `/api/analytics/:articleId` | Editor |
-
-`recordView(articleId)` in `controllers/analyticsController.js` is the helper the
-public article page calls to increment `viewsCount` and the hourly bucket.
-
-### Demo data
 ```bash
 npm run seed
 ```
-Generates 4 reporters + 1 editor (password `password123`), 520 articles across
-all 7 categories and all 4 states, 168 hours of hourly view curves with
-post-update bumps, update histories, and 15 live articles with a staged revision
-for the diff demo.
 
----
+The dataset contains 520 articles, four reporters, one editor, 120 comments,
+all publication states, pending revisions, multiple published updates and hourly
+view timelines. The script reports inserted counts and fails on insertion errors.
 
-## Public News Feed
+Demo accounts: `editor`, `reporter1`, `reporter2`, `reporter3`, `reporter4`.
+Their demo password is `password123`; these accounts are for local demonstration.
 
-- The home page renders the first 20 published articles in EJS.
-- Native `fetch()` updates search, categories, reading filters and sorting without
-  refreshing the page. `IntersectionObserver` loads the next 20 near the bottom.
-- Search matches literal text in titles and summaries, ignoring case. Search is
-  debounced by 300 ms and limited to 100 characters.
-- Read/unread filtering happens before database pagination. Article visits are
-  remembered in `localStorage.the_daily_web_viewed_ids` on the reader's browser.
-- Responses include only public card fields and the author's name, never staged
-  edits, editorial notes, full bodies or passwords.
-- Date/popularity sorting uses `_id` to break ties and compound MongoDB indexes.
-- Loading failures show Retry, and old responses cannot overwrite newer filters.
-- The Flexbox cards adapt to desktop/mobile and show a fallback for failed images.
+## Features and workflow
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/` | Initial home page and first batch |
-| `GET` | `/api/articles` | Public feed search and pagination |
-| `POST` | `/api/articles/search` | Same search using JSON for large reading histories |
+- The public feed loads 20 approved articles per batch. Search, category,
+  viewed/unviewed filters, date/popularity sorting and additional batches use
+  Ajax without reloading the page. Reading history belongs to each browser.
+- Article pages contain the complete approved article in their initial HTML.
+  Comments are escaped text and a new comment is appended immediately.
+- Guest comment attempts are limited to three per rolling minute per signed
+  browser session. MongoDB stores the limit atomically and expires old records.
+  Different browser sessions sharing an IP have separate limits. Registered
+  users are identified by their server session. Clearing cookies starts a new
+  browser identity; the application does not fingerprint devices.
+- Reporters can manage only their own articles. Drafts and returned articles
+  can be edited and submitted; submitted articles are read-only to reporters.
+- A published article keeps its approved fields while `pendingUpdate` holds a
+  separate draft, submitted or returned revision. An editor can inspect the
+  live/proposed diff, edit submitted content, approve it or return it with notes.
+  Approval promotes the revision and records an analytics milestone.
+- The workspace captures edits immediately, keeps a local recovery copy and
+  serializes server saves. Switching articles and submitting flush pending work;
+  page exit also sends a keepalive request. Save failures remain visible and
+  prevent submission. A fresh browser loads the last server-confirmed version.
+  An offline device must reconnect for another computer to receive its edits.
+- Staff lists and the analytics selector have pagination. Canvas shows hourly
+  views and publication markers on one timeline.
+- User, article, comment and view-statistics operations use server authorization.
+  Signed-in users are checked against the current account and role on requests.
+  Passwords use bcrypt with 12 rounds and independent salts, and hashes are
+  excluded from user API responses. Mongo-backed sessions survive server restart.
 
-Both API routes accept `page` (positive integer), `limit` (always `"20"`),
-`category` (`all` or a model category), `search`, `sort` (`date`/`popularity`),
-`viewedFilter` (`all`/`viewed`/`unviewed`) and `viewedIds` (comma-separated article
-IDs). JSON parameter values are strings, just like query-string values.
-The response is `{ articles, page, limit, total, hasMore }`. Invalid filters return
-400. The final batch may contain fewer than 20 articles. Reading filters use POST
-in the browser so thousands of IDs do not exceed HTTP URL limits; JSON is bounded
-to 1 MB. No additional packages are required.
+## Weather
 
-### Files
+The sidebar uses the [Open-Meteo forecast API](https://open-meteo.com/en/docs),
+free for noncommercial use without an API key or credit card. Data attribution
+appears in the widget. `WEATHER_CITY`, `WEATHER_LATITUDE` and `WEATHER_LONGITUDE`
+must describe the same place; defaults point to Tel Aviv.
 
-- `controllers/feedController.js`: shared validated query and home rendering.
-- `routes/api/feedRoutes.js`, `routes/webRoutes.js`: API and home routes.
-- `views/pages/home.ejs`, `views/partials/feed-card.ejs`: page and card template.
-- `public/js/newsfeed.js`: AJAX, scrolling, safe card creation and reading history.
-- `public/css/newsfeed.css`: responsive Flexbox styles.
-- `tests/unit/feed-filter.test.js`, `tests/e2e/newsfeed.spec.js`: isolated fixtures.
+A shared in-flight request prevents duplicate refreshes in one server process.
+Responses contain the provider observation time and the server fetch time.
+Cached observations are served only while younger than 15 minutes; the browser
+expires displayed data at that same deadline, including after a background tab returns. Provider
+failures, invalid data and a ten-second timeout display weather unavailable;
+expired observations are not presented as current weather. Cache state is per
+server process, while authentication and guest limits are Mongo-backed.
 
-### Testing
+## Project structure
 
-`npm test` creates temporary in-memory MongoDB databases. Browser tests require
-an **empty dedicated test database**, not the seeded demonstration database:
+| Path | Responsibility |
+| --- | --- |
+| `app.js`, `server.js` | Express setup, routes and server lifecycle |
+| `config/` | MongoDB connection and persisted session configuration |
+| `models/` | Users, articles, comments, hourly views and guest limit records |
+| `controllers/` | Validation, feed queries, workflow, comments, weather and statistics |
+| `middlewares/` | Authentication, roles, guest limiter and shared error handling |
+| `routes/` | Web pages and REST endpoints |
+| `views/` | EJS pages and shared partials |
+| `public/` | CSS, browser JavaScript and the original default article image |
+| `scripts/seed.js` | Demonstration dataset |
+| `tests/unit/`, `tests/e2e/` | Existing Jest/integration and Playwright checks |
+
+## Main REST endpoints
+
+| Model/feature | Create | Read/List/Search | Update | Delete |
+| --- | --- | --- | --- | --- |
+| Users (editor) | `POST /api/users` | `GET /api/users`, `GET /api/users/:id` | `PUT /api/users/:id` | `DELETE /api/users/:id` |
+| Articles | `POST /api/reporter/articles` | Public `GET /api/articles`; staff lists and diff | Reporter autosave or editor `PUT /api/editor/articles/:id` | Editor `DELETE /api/editor/articles/:id` |
+| Comments | `POST /api/comments` | `GET /api/articles/:articleId/comments` | Editor `PUT /api/comments/:commentId` | Editor `DELETE /api/comments/:commentId` |
+| Hourly views | Public article visit; editor bucket upsert | Editor `GET /api/analytics/:articleId` | Editor `PUT /api/analytics/:articleId/buckets` | Editor `DELETE /api/analytics/:articleId` resets buckets |
+
+Bucket upsert accepts `{ "time": "2026-10-08T12:00:00.000Z", "views": 7 }`.
+The timestamp must be an exact UTC hour and views a nonnegative integer.
+Management operations update the article total as well. Article deletion also
+removes related comments and view records.
+
+Reporter submission: `POST /api/reporter/articles/:id/submit`.
+Editor approval and return: `POST /api/editor/articles/:id/approve` and
+`POST /api/editor/articles/:id/reject` (requires a nonempty `notes` string).
+`GET /api/analytics/articles?page=1` lists lightweight published article choices.
+
+## Checks
 
 ```bash
-MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web_test npm run test:e2e
-```
-
-On PowerShell, set the variable first:
-
-```powershell
-$env:MONGODB_URI = "mongodb://127.0.0.1:27017/the_daily_web_test"
+npm test
+npx playwright install chromium
 npm run test:e2e
+npm audit --omit=dev
 ```
 
-Install Chromium once with `npx playwright install chromium`. Test fixtures remove
-only their own articles and users. The article-view integration test uses a page
-fixture to verify the shared markup contract.
+Jest creates isolated temporary MongoDB databases and enforces the existing
+100% coverage threshold for controllers, models, middleware and routes.
+Coverage does not describe browser scripts or prove every requirement.
 
-### Integration
+Browser tests require a running **empty dedicated test database**. For example,
+set `MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web_test` and a test
+`SESSION_SECRET` before running them. Playwright starts the application itself.
+On PowerShell, use `$env:MONGODB_URI="mongodb://127.0.0.1:27017/the_daily_web_test"`.
+Never run destructive fixtures or seed commands against shared production data.
 
-The article route is `/articles/:id`. The article wrapper uses
-`class="article-detail-container"` and `data-article-id="..."`.
-The shared footer loads `newsfeed.js`, which records visits to this
-wrapper and safely returns on pages without a feed. Reading history belongs to
-this browser/device; it is not a login permission or a cross-device feature.
+The production dependency audit reports zero advisories for the installed
+lockfile at verification time. The full audit still reports development-tool
+advisories in Jest/nodemon dependencies; the suggested forced changes replace
+existing tools and were not applied. These packages process local test/config
+files, not public requests. Recheck the audit before deployment.
 
-See the [news feed technical guide](docs/NEWS_FEED.md) for the request flow,
-implementation details and integration checks.
+## Deployment configuration
+
+`NODE_ENV=production` requires a secret of at least 32 characters and sets
+`Secure` session cookies. Use HTTPS and a private, access-controlled MongoDB
+connection, with TLS for remote connections. Express proxy trust remains off
+by default. If HTTPS terminates at a reverse proxy, configure trust only for
+that known proxy before deploying; do not blindly trust client forwarding headers.
+
+Local automated checks cannot establish the access controls of a separately
+hosted database or the team's HTTPS setup. Verify those on the actual hosting
+system, and run the tested version on each presentation computer before submission.
+The load checks exercise thousands of stored articles and concurrent requests;
+they are not a claim about thousands of simultaneous deployed readers.

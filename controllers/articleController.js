@@ -3,8 +3,11 @@ const Comment = require('../models/Comment');
 
 const { recordView } = require('./analyticsController');
 
-exports.renderArticlePage = async (req, res) => {
+exports.renderArticlePage = async (req, res, next) => {
     try {
+        if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+            return res.status(400).render('pages/error', { title: 'Invalid article ID', message: 'Invalid article ID' });
+        }
         const article = await Article.findOne({
             _id: req.params.id,
             status: 'published'
@@ -17,11 +20,15 @@ exports.renderArticlePage = async (req, res) => {
         });
         }
 
-        recordView(article._id);
+        if (!req.session.user) {
+            req.session.commentDevice = true;
+            await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+        }
+        await recordView(article._id);
 
         const comments = await Comment.find({
         article: article._id
-        }).sort({createdAt: -1});
+        }).select('_id authorName content createdAt').sort({createdAt: -1});
 
         res.render('pages/article', {
             title: article.title,
@@ -31,9 +38,6 @@ exports.renderArticlePage = async (req, res) => {
     }
 
     catch (error) {
-        res.status(500).render('pages/error', {
-            title: 'Server error',
-            message: 'Failed to load article'
-        });
+        next(error);
     }
 };

@@ -13,6 +13,10 @@
   const canvas = document.getElementById('impactChart');
   const ctx = canvas.getContext('2d');
   const selectEl = document.getElementById('article-select');
+  const previousEl = document.getElementById('articles-previous');
+  const nextEl = document.getElementById('articles-next');
+  const pageEl = document.getElementById('articles-page');
+  let articlePage = 1;
   const tooltip = document.getElementById('chart-tooltip');
   const emptyEl = document.getElementById('chart-empty');
   const summaryEl = document.getElementById('chart-summary');
@@ -124,9 +128,11 @@
       return;
     }
     emptyEl.hidden = true;
+    emptyEl.textContent = 'No view data yet for this article.';
     canvas.hidden = false;
 
-    const times = timeline.map(function (r) { return new Date(r.time).getTime(); });
+    const times = timeline.map(function (r) { return new Date(r.time).getTime(); })
+      .concat((data.milestones || []).map(function (m) { return new Date(m.time).getTime(); }));
     const views = timeline.map(function (r) { return r.views; });
     const tMin = Math.min.apply(null, times);
     const tMax = Math.max.apply(null, times);
@@ -231,13 +237,16 @@
 
   async function loadArticleOptions() {
     try {
-      const res = await fetch('/api/editor/articles?status=published');
+      const res = await fetch('/api/analytics/articles?page=' + articlePage);
       if (!res.ok) {
         selectEl.innerHTML = '<option value="">Could not load</option>';
         return;
       }
       const body = await res.json();
       const list = body.articles || [];
+      pageEl.textContent = 'Page ' + articlePage;
+      previousEl.disabled = articlePage === 1;
+      nextEl.disabled = !body.hasMore;
       if (list.length === 0) {
         selectEl.innerHTML = '<option value="">No published articles</option>';
         return;
@@ -264,16 +273,22 @@
     }
     try {
       const res = await fetch('/api/analytics/' + id);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('Could not load statistics');
       const data = await res.json();
       render(data);
     } catch (err) {
-      /* leave canvas as-is on failure */
+      clear();
+      canvas.hidden = true;
+      summaryEl.hidden = true;
+      emptyEl.textContent = 'Could not load statistics. Select the article again to retry.';
+      emptyEl.hidden = false;
     }
   }
 
   function init() {
     selectEl.addEventListener('change', handleSelect);
+    previousEl.addEventListener('click', function () { articlePage--; loadArticleOptions(); });
+    nextEl.addEventListener('click', function () { articlePage++; loadArticleOptions(); });
     canvas.addEventListener('mousemove', handleMove);
     canvas.addEventListener('mouseleave', handleLeave);
     loadArticleOptions();

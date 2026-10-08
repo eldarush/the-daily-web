@@ -2,14 +2,14 @@ function requireRole(role) {
   return function(req, res, next) {
     const isApi = req.originalUrl?.startsWith('/api') || req.path?.startsWith('/api') || req.xhr || req.headers?.accept?.includes('application/json');
 
-    if (!req.session || !req.session.user) {
+    if (!req.currentUser) {
       if (isApi) {
         return res.status(401).json({ error: 'Authentication required' });
       }
       return res.redirect('/login');
     }
 
-    if (req.session.user.role !== role) {
+    if (req.currentUser.role !== role) {
       if (isApi) {
         return res.status(403).json({ error: `Forbidden: Requires '${role}' role` });
       }

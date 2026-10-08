@@ -34,7 +34,7 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
     mongod = await MongoMemoryServer.create();
     const uri = mongod.getUri();
     process.env.MONGODB_URI = uri;
-    process.env.SESSION_SECRET = 'test-secret-workflow';
+    process.env.SESSION_SECRET = 'test-secret-workflow-isolated-only';
     process.env.NODE_ENV = 'test';
 
     await mongoose.connect(uri);
@@ -233,7 +233,7 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
 
     test('autosave forwards unexpected errors to next()', async () => {
       const a = await makeArticle({ status: 'draft' });
-      const spy = jest.spyOn(Article.prototype, 'save').mockRejectedValueOnce(new Error('save boom'));
+      const spy = jest.spyOn(Article, 'updateOne').mockRejectedValueOnce(new Error('save boom'));
       const next = jest.fn();
       await reporterController.autosaveArticle(
         { params: { id: String(a._id) }, body: { title: 'x' }, session: { user: { id: String(reporter._id) } } },
@@ -290,7 +290,7 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
 
       const pending = await editorAgent.get('/api/editor/articles?status=pending&page=1');
       expect(pending.status).toBe(200);
-      pending.body.articles.forEach((a) => expect(a.status).toBe('pending'));
+      pending.body.articles.forEach((a) => expect(a.status === 'pending' || a.pendingUpdate.status === 'pending').toBe(true));
 
       const bad = await editorAgent.get('/api/editor/articles?status=bogus');
       expect(bad.status).toBe(400);
@@ -402,6 +402,7 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
         publishedAt: new Date(),
         pendingUpdate: { hasUpdate: true, title: 'Promoted', summary: 'ps', content: 'pc', category: 'World', imageUrl: '/p.jpg' }
       });
+      await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`);
       const res = await editorAgent.post(`/api/editor/articles/${a._id}/approve`).send({});
       expect(res.status).toBe(200);
       const fresh = await Article.findById(a._id);
@@ -418,6 +419,7 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
         publishedAt: new Date(),
         pendingUpdate: { hasUpdate: true, title: 'P2', summary: 's', content: 'c', category: 'News' }
       });
+      await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`);
       const res = await editorAgent.post(`/api/editor/articles/${a._id}/approve`).send({ changelogNote: 'Fixed the numbers' });
       expect(res.status).toBe(200);
       const fresh = await Article.findById(a._id);
@@ -489,6 +491,102 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
       expect(next).toHaveBeenCalledWith(expect.any(Error));
       spy.mockRestore();
     });
+  });
+
+  test('blank intermediate drafts persist but cannot be submitted or published', async () => {
+    const a = await makeArticle();
+    expect((await reporterAgent.put(`/api/reporter/articles/${a._id}/autosave`).send({ title: '', summary: '', content: '' })).status).toBe(200);
+    expect((await Article.findById(a._id)).title).toBe('');
+    expect((await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`)).status).toBe(400);
+    await Article.updateOne({ _id: a._id }, { status: 'pending' });
+    expect((await editorAgent.post(`/api/editor/articles/${a._id}/approve`).send({})).status).toBe(400);
+  });
+
+  test('delayed older autosave cannot overwrite a newer acknowledged version', async () => {
+    const a = await makeArticle();
+    const url = `/api/reporter/articles/${a._id}/autosave`;
+    for (const saveVersion of [0, -1, 1.5, '1']) {
+      expect((await reporterAgent.put(url).send({ content: 'Invalid', saveVersion })).status).toBe(400);
+    }
+    let release;
+    let announce;
+    const blocked = new Promise(resolve => { release = resolve; });
+    const started = new Promise(resolve => { announce = resolve; });
+    const original = Article.updateOne.bind(Article);
+    const spy = jest.spyOn(Article, 'updateOne').mockImplementation(async (...args) => {
+      if (args[1].$set.saveVersion === 1) {
+        announce();
+        await blocked;
+      }
+      return original(...args);
+    });
+    const older = reporterAgent.put(url).send({ content: 'Delayed older', saveVersion: 1 }).then(response => response);
+    await started;
+    const newest = await reporterAgent.put(url).send({ content: 'Newest', saveVersion: 2 });
+    const retried = await reporterAgent.put(url).send({ content: 'Newest', saveVersion: 2 });
+    release();
+    expect(newest.status).toBe(200);
+    expect(retried.status).toBe(200);
+    expect((await older).status).toBe(409);
+    spy.mockRestore();
+    expect((await Article.findById(a._id)).content).toBe('Newest');
+  });
+
+  test('editor preserves submitted fields and refuses invalid notes and repeat submissions', async () => {
+    const a = await makeArticle({ status: 'published', publishedAt: new Date() });
+    await reporterAgent.put(`/api/reporter/articles/${a._id}/autosave`).send({ title: 'Reporter revision', content: 'New report' });
+    await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`);
+    expect((await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`)).status).toBe(400);
+    const draft = await makeArticle({ status: 'pending' });
+    expect((await reporterAgent.post(`/api/reporter/articles/${draft._id}/submit`)).status).toBe(400);
+    expect((await editorAgent.post(`/api/editor/articles/${a._id}/approve`).send({ changelogNote: {} })).status).toBe(400);
+    expect((await editorAgent.put(`/api/editor/articles/${a._id}`).send({ summary: 'Editor summary' })).status).toBe(200);
+    const fresh = await Article.findById(a._id);
+    expect(fresh.pendingUpdate.title).toBe('Reporter revision');
+    expect(fresh.pendingUpdate.content).toBe('New report');
+    expect(fresh.pendingUpdate.summary).toBe('Editor summary');
+    const published = await editorAgent.get('/api/editor/articles?status=published');
+    published.body.articles.forEach(article => expect(article.status).toBe('published'));
+  });
+
+  test('workflow rejects object fields and deletes related records', async () => {
+    const bad = await reporterAgent.post('/api/reporter/articles').send({ title: { $gt: '' } });
+    expect(bad.status).toBe(400);
+    const a = await makeArticle();
+    expect((await reporterAgent.put(`/api/reporter/articles/${a._id}/autosave`).send({ content: ['bad'] })).status).toBe(400);
+    expect((await editorAgent.put(`/api/editor/articles/${a._id}`).send({ summary: 123 })).status).toBe(400);
+    const Comment = require('../../models/Comment');
+    await Comment.create({ article: a._id, authorName: 'Reader', content: 'Comment', userIp: '127.0.0.1' });
+    await ViewAnalytics.create({ article: a._id, timestampBucket: new Date(), views: 1 });
+    expect((await editorAgent.delete(`/api/editor/articles/${a._id}`)).status).toBe(200);
+    expect(await Comment.countDocuments({ article: a._id })).toBe(0);
+    expect(await ViewAnalytics.countDocuments({ article: a._id })).toBe(0);
+  });
+
+  test('published revision must be submitted, returned and resubmitted before promotion', async () => {
+    const a = await makeArticle({ status: 'published', title: 'Still live', publishedAt: new Date() });
+    const base = `/api/reporter/articles/${a._id}`;
+    const review = `/api/editor/articles/${a._id}`;
+    await reporterAgent.put(base + '/autosave').send({ title: 'Proposed' });
+    expect((await editorAgent.post(review + '/approve').send({})).status).toBe(400);
+    expect((await reporterAgent.post(base + '/submit')).status).toBe(200);
+    expect((await reporterAgent.put(base + '/autosave').send({ title: 'Forbidden' })).status).toBe(400);
+    const listed = await editorAgent.get('/api/editor/articles?status=pending');
+    expect(listed.body.articles.some(article => article._id === String(a._id))).toBe(true);
+    expect((await editorAgent.post(review + '/reject').send({ notes: 'Cite a source' })).status).toBe(200);
+    let fresh = await Article.findById(a._id);
+    expect(fresh.status).toBe('published');
+    expect(fresh.title).toBe('Still live');
+    expect(fresh.pendingUpdate.status).toBe('rejected');
+    expect(fresh.pendingUpdate.editorNotes).toBe('Cite a source');
+    await reporterAgent.put(base + '/autosave').send({ content: 'Corrected source' });
+    expect((await reporterAgent.post(base + '/submit')).status).toBe(200);
+    expect((await editorAgent.post(review + '/approve').send({})).status).toBe(200);
+    fresh = await Article.findById(a._id);
+    expect(fresh.title).toBe('Proposed');
+    expect(fresh.content).toBe('Corrected source');
+    expect(fresh.publishedUpdates).toHaveLength(1);
+    expect((await reporterAgent.put(base + '/autosave').send({ title: 'Next revision' })).status).toBe(200);
   });
 
   // --------------------------------------------------------------------------

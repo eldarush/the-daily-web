@@ -2,9 +2,9 @@ const User = require('../models/User');
 
 async function login(req, res, next) {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
 
-    if (!username || !password) {
+    if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password.trim()) {
       return res.status(400).json({ error: 'Username and password are required.' });
     }
 
@@ -38,8 +38,8 @@ function logout(req, res, next) {
 }
 
 function getCurrentUser(req, res) {
-  if (req.session && req.session.user) {
-    return res.status(200).json({ user: req.session.user });
+  if (req.currentUser) {
+    return res.status(200).json({ user: req.currentUser });
   }
   return res.status(401).json({ error: 'Not authenticated' });
 }

@@ -120,6 +120,43 @@ test.describe('Article Page & Comments E2E', () => {
     });
 
 
+    test('Real article visits tolerate malformed storage, record one ID and safely insert comments', async ({ page }) => {
+        await page.addInitScript(() => localStorage.setItem('the_daily_web_viewed_ids', '{broken'));
+        await page.goto(`/articles/${testArticle._id}`);
+        await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('the_daily_web_viewed_ids')))).toEqual([testArticle._id.toString()]);
+        await page.locator('#author-name').fill('<script>window.commentExecuted=true</script>');
+        await page.locator('#comment-content').fill('<img src=x onerror="window.commentExecuted=true">');
+        await page.locator('#comment-form button[type="submit"]').click();
+        await expect(page.locator('.comment').first().locator('strong')).toHaveText('<script>window.commentExecuted=true</script>');
+        expect(await page.evaluate(() => window.commentExecuted)).toBeUndefined();
+        await expect(page.locator('.comment').first().locator('img,script')).toHaveCount(0);
+        await page.reload();
+        expect(await page.evaluate(() => JSON.parse(localStorage.getItem('the_daily_web_viewed_ids')))).toEqual([testArticle._id.toString()]);
+        await expect(page.locator('#comments-list')).toContainText('<img src=x onerror="window.commentExecuted=true">');
+    });
+
+    test('Deleted authors and unavailable images still render a readable article', async ({ page }) => {
+        const orphan = await Article.create({title: 'Orphan article', summary: 'Readable', content: '<script>unsafe text</script>', category: 'News', author: new mongoose.Types.ObjectId(), status: 'published', imageUrl: '/images/missing-for-test.jpg'});
+        try {
+            await page.goto(`/articles/${orphan._id}`);
+            await expect(page.locator('.article-meta')).toContainText('Staff Reporter');
+            await expect(page.locator('.article-content')).toHaveText('<script>unsafe text</script>');
+            await expect(page.locator('.article-image img')).toHaveAttribute('src', '/images/default-article.jpg');
+            await expect.poll(() => page.locator('.article-image img').evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+        } finally { await Article.findByIdAndDelete(orphan._id); }
+    });
+
+    test('Comments remain usable when browser storage is blocked', async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(window, 'localStorage', {get() {throw new Error('Storage unavailable');}});
+        });
+        await page.goto(`/articles/${testArticle._id}`);
+        await page.locator('#author-name').fill('Storage blocked');
+        await page.locator('#comment-content').fill('Still readable');
+        await page.locator('#comment-form button[type="submit"]').click();
+        await expect(page.locator('.comment').first().locator('.comment-content')).toHaveText('Still readable');
+    });
+
     test.afterAll(async () => {
 
         // Delete comments created for the test
