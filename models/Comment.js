@@ -11,7 +11,8 @@ const commentSchema = new mongoose.Schema({
     authorName: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        maxlength: 100
     },
 
     content: {

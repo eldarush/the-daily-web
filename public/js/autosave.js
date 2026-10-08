@@ -19,7 +19,29 @@
 
   let articles = [];
   let currentId = null;
+  let currentArticle = null;
   let debounceTimer = null;
+  let page = 1;
+  let total = 0;
+  let pageSize = 20;
+  const pending = new Map();
+  const versions = new Map();
+  let saving = Promise.resolve(true);
+  let switching = false;
+
+  function editable(article) {
+    return article.status !== 'pending' && !(article.status === 'published' && article.pendingUpdate && article.pendingUpdate.status === 'pending');
+  }
+
+  function updateControls(article) {
+    const state = article.status === 'published' && article.pendingUpdate.hasUpdate ? article.pendingUpdate.status : article.status;
+    formEl.querySelectorAll('input, textarea, select').forEach(function (control) { control.disabled = !editable(article); });
+    const submit = document.getElementById('submit-article-btn');
+    submit.disabled = !editable(article);
+    submit.textContent = state === 'pending' ? 'Awaiting review' : 'Submit for review';
+    rejectionBanner.hidden = state !== 'rejected';
+    rejectionNotes.textContent = article.status === 'published' ? article.pendingUpdate.editorNotes || '' : article.editorNotes || '';
+  }
 
   /** Reads the editable fields out of the form into a plain object. */
   function readForm() {
@@ -77,7 +99,7 @@
       li.dataset.id = article._id;
       li.innerHTML =
         '<span class="item-title">' + escapeHtml(article.title) + '</span>' +
-        '<span class="status-pill status-' + article.status + '">' + article.status + '</span>';
+        '<span class="status-pill status-' + article.status + '">' + article.status + (article.status === 'published' && article.pendingUpdate.hasUpdate ? ' · revision ' + article.pendingUpdate.status : '') + '</span>';
       li.addEventListener('click', function () {
         selectArticle(article._id);
       });
@@ -94,14 +116,20 @@
   function findArticle(id) {
     return articles.find(function (a) {
       return a._id === id;
-    });
+    }) || (currentArticle && currentArticle._id === id ? currentArticle : null);
   }
 
   /** Loads an article into the editor, preferring a newer unsaved local backup. */
-  function selectArticle(id) {
+  async function selectArticle(id) {
+    if (switching) return;
+    switching = true;
+    const ok = await flush();
+    switching = false;
+    if (!ok) return;
     const article = findArticle(id);
     if (!article) return;
     currentId = id;
+    currentArticle = article;
     idEl.value = id;
     panelEl.hidden = false;
 
@@ -111,16 +139,17 @@
 
     const local = readLocalBackup(id);
     const serverStamp = new Date(serverData.updatedAt || article.updatedAt || 0).getTime();
-    if (local && local.stamp > serverStamp) {
+    if (editable(article) && local && (local.data.saveVersion > article.saveVersion || (local.data.saveVersion === undefined && local.stamp > serverStamp))) {
       writeForm(local.data);
       setBadge('idle', 'Restored unsaved changes');
+      pending.set(id, local.data);
+      debounceTimer = setTimeout(flush, DEBOUNCE_MS);
     } else {
       writeForm(serverData);
       setBadge('idle', 'Ready');
     }
 
-    rejectionBanner.hidden = article.status !== 'rejected';
-    rejectionNotes.textContent = article.editorNotes || '';
+    updateControls(article);
     publishedBanner.hidden = article.status !== 'published';
     renderList();
   }
@@ -142,44 +171,70 @@
     }
   }
 
-  async function saveNow() {
+  function capture() {
     if (!currentId) return;
     const data = readForm();
+    const local = readLocalBackup(currentId);
+    data.saveVersion = Math.max(versions.get(currentId) || 0, currentArticle.saveVersion || 0, local && local.data.saveVersion || 0) + 1;
+    versions.set(currentId, data.saveVersion);
     writeLocalBackup(currentId, data);
-    setBadge('saving', 'Saving…');
-    try {
-      const res = await fetch('/api/reporter/articles/' + currentId + '/autosave', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(function () { return {}; });
-        setBadge('error', body.error || 'Save failed');
-        return;
-      }
-      setBadge('saved', 'All changes saved · ' + nowTime());
-      syncListTitle(data.title);
-    } catch (err) {
-      setBadge('error', 'Offline — kept locally');
-    }
+    pending.set(currentId, data);
   }
 
-  function syncListTitle(title) {
-    const article = findArticle(currentId);
-    if (article && article.status !== 'published') {
-      article.title = title;
-      renderList();
-    }
+  function flush() {
+    clearTimeout(debounceTimer);
+    saving = saving.then(async function () {
+      while (pending.size) {
+        const [id, data] = pending.entries().next().value;
+        if (currentId === id) setBadge('saving', 'Saving…');
+        try {
+          const res = await fetch('/api/reporter/articles/' + id + '/autosave', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+          });
+          const body = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(body.error || 'Save failed');
+          const article = findArticle(id);
+          if (article) {
+            article.saveVersion = body.saveVersion;
+            if (article.status === 'published') article.pendingUpdate = Object.assign({}, article.pendingUpdate, data, { hasUpdate: true, updatedAt: body.updatedAt });
+            else Object.assign(article, data, { updatedAt: body.updatedAt });
+          }
+          if (pending.get(id) === data) {
+            pending.delete(id);
+            try { localStorage.removeItem(LOCAL_PREFIX + id); } catch (err) { /* ignore */ }
+            if (currentId === id) setBadge('saved', 'All changes saved · ' + nowTime());
+          }
+          renderList();
+        } catch (err) {
+          if (currentId === id) setBadge('error', err.message + ' — kept locally');
+          return false;
+        }
+      }
+      return true;
+    });
+    return saving;
   }
 
   function handleInput() {
-    setBadge('saving', 'Saving…');
+    capture();
+    setBadge('saving', 'Changes waiting to save');
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(saveNow, DEBOUNCE_MS);
+    debounceTimer = setTimeout(flush, DEBOUNCE_MS);
+  }
+
+  function saveOnExit() {
+    clearTimeout(debounceTimer);
+    pending.forEach(function (data, id) {
+      fetch('/api/reporter/articles/' + id + '/autosave', {
+        method: 'PUT', keepalive: true,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+      }).catch(function () { /* recovery copy remains */ });
+    });
   }
 
   async function handleNewArticle() {
+    if (!(await flush())) return;
+    page = 1;
     setBadge('saving', 'Creating…');
     try {
       const res = await fetch('/api/reporter/articles', {
@@ -201,20 +256,18 @@
 
   async function handleSubmit() {
     if (!currentId) return;
-    const article = findArticle(currentId);
-    if (article && article.status === 'published') {
-      await saveNow();
-      setBadge('saved', 'Update staged for editor review');
-      return;
-    }
-    await saveNow();
+    const id = currentId;
+    if (!(await flush())) return;
+    if (currentId !== id) return;
     try {
-      const res = await fetch('/api/reporter/articles/' + currentId + '/submit', { method: 'POST' });
+      const res = await fetch('/api/reporter/articles/' + id + '/submit', { method: 'POST' });
       const body = await res.json().catch(function () { return {}; });
       if (!res.ok) {
         setBadge('error', body.error || 'Submit failed');
         return;
       }
+      if (currentArticle.status === 'published') currentArticle.pendingUpdate.status = 'pending';
+      else currentArticle.status = 'pending';
       try { localStorage.removeItem(LOCAL_PREFIX + currentId); } catch (err) { /* ignore */ }
       await loadArticles();
       selectArticle(currentId);
@@ -226,10 +279,15 @@
 
   async function loadArticles() {
     try {
-      const res = await fetch('/api/reporter/articles');
+      const res = await fetch('/api/reporter/articles?page=' + page);
       if (!res.ok) return;
       const body = await res.json();
       articles = body.articles || [];
+      total = body.total;
+      pageSize = body.pageSize;
+      document.getElementById('workspace-page').textContent = 'Page ' + page + ' of ' + Math.max(1, Math.ceil(total / pageSize));
+      document.getElementById('workspace-prev').disabled = page <= 1;
+      document.getElementById('workspace-next').disabled = page * pageSize >= total;
       renderList();
     } catch (err) {
       listEl.innerHTML = '<li class="empty-hint">Could not load articles.</li>';
@@ -239,6 +297,22 @@
   function init() {
     populateCategories();
     formEl.addEventListener('input', handleInput);
+    formEl.addEventListener('submit', function (event) { event.preventDefault(); });
+    window.addEventListener('pagehide', saveOnExit);
+    window.addEventListener('online', flush);
+    document.addEventListener('click', async function (event) {
+      const link = event.target.closest('a[href]');
+      if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.button) return;
+      event.preventDefault();
+      if (await flush()) window.location.assign(link.href);
+    });
+    ['prev', 'next'].forEach(function (direction) {
+      document.getElementById('workspace-' + direction).addEventListener('click', async function () {
+        if (!(await flush())) return;
+        page += direction === 'prev' ? -1 : 1;
+        await loadArticles();
+      });
+    });
     document.getElementById('new-article-btn').addEventListener('click', handleNewArticle);
     document.getElementById('submit-article-btn').addEventListener('click', handleSubmit);
     loadArticles();

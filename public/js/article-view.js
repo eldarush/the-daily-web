@@ -1,16 +1,18 @@
 const commentForm = document.getElementById('comment-form');
 const articleId = document.getElementById('article-id').value;
 
-const viewArticles = JSON.parse(
-    localStorage.getItem('the_daily_web_viewed_ids') || '[]'
-);
-
-if (!viewArticles.includes(articleId)) {
-    viewArticles.push(articleId);
-    localStorage.setItem(
-        'the_daily_web_ids',
-        JSON.stringify(viewArticles)
-    );
+const articleImage = document.querySelector('.article-image img');
+if (articleImage) {
+    const fallback = () => {
+        if (articleImage.dataset.fallbackApplied) {
+            articleImage.hidden = true;
+            return;
+        }
+        articleImage.dataset.fallbackApplied = 'true';
+        articleImage.src = '/images/default-article.jpg';
+    };
+    articleImage.addEventListener('error', fallback);
+    if (articleImage.complete && !articleImage.naturalWidth) fallback();
 }
 
 const commentContent = document.getElementById('comment-content');

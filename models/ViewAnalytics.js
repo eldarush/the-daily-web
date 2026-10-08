@@ -16,7 +16,7 @@ const viewAnalyticsSchema = new mongoose.Schema(
     // Start of the hour this bucket accumulates, truncated to UTC HH:00:00.000.
     timestampBucket: { type: Date, required: true, index: true },
 
-    views: { type: Number, default: 0 }
+    views: { type: Number, default: 0, min: 0 }
   },
   { timestamps: true }
 );

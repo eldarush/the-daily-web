@@ -155,7 +155,8 @@ test('a database failure returns an error page instead of crashing the home rout
   const res = await request(app).get('/');
   spy.mockRestore();
   expect(res.status).toBe(500);
-  expect(res.text).toContain('Temporary database failure');
+  expect(res.text).toContain('An unexpected internal error occurred.');
+  expect(res.text).not.toContain('Temporary database failure');
   const recovered = await request(app).get('/');
   expect(recovered.status).toBe(200);
 });

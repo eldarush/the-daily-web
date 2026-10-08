@@ -2,7 +2,7 @@
 
 <div class="article-page">
 
-  <article class="article-container">
+  <article class="article-container article-detail-container" data-article-id="<%= article._id %>">
 
     <!-- Article header -->
     <header class="article-header">
@@ -22,7 +22,7 @@
       <div class="article-meta">
 
         <span>
-          By <%= article.author.fullName %>
+          By <%= article.author ? article.author.fullName : 'Staff Reporter' %>
         </span>
 
         <% if (article.publishedAt) { %>
@@ -39,7 +39,7 @@
     <!-- Article image -->
     <div class="article-image">
       <img
-        src="<%= article.imageUrl %>"
+        src="<%= article.imageUrl || '/images/default-article.jpg' %>"
         alt="<%= article.title %>"
       >
     </div>
@@ -76,6 +76,7 @@
             type="text"
             id="author-name"
             name="authorName"
+            maxlength="100"
             required
           >
         </div>
