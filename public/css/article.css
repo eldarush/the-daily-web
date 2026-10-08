@@ -1,0 +1,230 @@
+/* =========================
+   Article Page
+   ========================= */
+
+.article-page {
+    width: 100%;
+}
+
+/* Main article card */
+.article-container {
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 2rem;
+}
+
+/* =========================
+   Article Header
+   ========================= */
+
+.article-header {
+    margin-bottom: 1.5rem;
+}
+
+.article-category {
+    display: inline-block;
+    color: var(--color-secondary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+}
+
+.article-header h1 {
+    font-family: var(--font-serif);
+    color: var(--color-primary);
+    font-size: 2.5rem;
+    line-height: 1.2;
+    margin-bottom: 1rem;
+}
+
+.article-summary {
+    font-size: 1.15rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+}
+
+.article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+
+/* =========================
+   Article Image
+   ========================= */
+
+.article-image {
+    margin: 1.5rem 0;
+}
+
+.article-image img {
+    width: 100%;
+    max-height: 500px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    display: block;
+}
+
+/* =========================
+   Article Content
+   ========================= */
+
+.article-content {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: var(--color-text-main);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+/* =========================
+   Comments Section
+   ========================= */
+
+.comments-section {
+    margin-top: 2rem;
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 2rem;
+}
+
+.comments-section h2 {
+    font-family: var(--font-serif);
+    color: var(--color-primary);
+    font-size: 1.6rem;
+    margin-bottom: 1.5rem;
+}
+
+/* =========================
+   Comment Form
+   ========================= */
+
+#comment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+#comment-form textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border-dark);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    outline: none;
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+#comment-form textarea:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.15);
+}
+
+#comment-form button {
+    align-self: flex-start;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.65rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+#comment-form button:hover {
+    background-color: var(--color-primary-hover);
+}
+
+#comment-message {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+/* =========================
+   Existing Comments
+   ========================= */
+
+#comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.comment {
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-main);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.comment-header strong {
+    color: var(--color-primary);
+}
+
+.comment-header span {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+
+.comment-content {
+    color: var(--color-text-main);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+#no-comments {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* =========================
+   Responsive Design
+   ========================= */
+
+@media (max-width: 600px) {
+
+    .article-container,
+    .comments-section {
+        padding: 1.25rem;
+    }
+
+    .article-header h1 {
+        font-size: 1.8rem;
+    }
+
+    .article-summary {
+        font-size: 1rem;
+    }
+
+    .comment-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}

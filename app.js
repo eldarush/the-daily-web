@@ -15,6 +15,7 @@ const reporterRoutes = require('./routes/api/reporterRoutes');
 const editorRoutes = require('./routes/api/editorRoutes');
 const analyticsRoutes = require('./routes/api/analyticsRoutes');
 const feedRoutes = require('./routes/api/feedRoutes');
+const commentRoutes = require('./routes/api/commentRoutes');
 const webRoutes = require('./routes/webRoutes');
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/reporter', reporterRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/articles', feedRoutes);
+app.use('/api', commentRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
