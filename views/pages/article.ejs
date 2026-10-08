@@ -1,0 +1,150 @@
+<%- include('../partials/header') %>
+
+<div class="article-page">
+
+  <article class="article-container article-detail-container" data-article-id="<%= article._id %>">
+
+    <!-- Article header -->
+    <header class="article-header">
+
+      <span class="article-category">
+        <%= article.category %>
+      </span>
+
+      <h1>
+        <%= article.title %>
+      </h1>
+
+      <p class="article-summary">
+        <%= article.summary %>
+      </p>
+
+      <div class="article-meta">
+
+        <span>
+          By <%= article.author ? article.author.fullName : 'Staff Reporter' %>
+        </span>
+
+        <% if (article.publishedAt) { %>
+          <span>
+            <%= new Date(article.publishedAt).toLocaleDateString() %>
+          </span>
+        <% } %>
+
+      </div>
+
+    </header>
+
+
+    <!-- Article image -->
+    <div class="article-image">
+      <img
+        src="<%= article.imageUrl || '/images/default-article.jpg' %>"
+        alt="<%= article.title %>"
+      >
+    </div>
+
+
+    <!-- Full article content -->
+    <div class="article-content">
+      <%= article.content %>
+    </div>
+
+  </article>
+
+
+  <!-- Comments section -->
+  <section class="comments-section">
+
+    <h2>Comments</h2>
+
+
+    <!-- New comment form -->
+    <form id="comment-form">
+
+      <input
+        type="hidden"
+        id="article-id"
+        value="<%= article._id %>"
+      >
+
+      <% if (!currentUser) { %>
+        <div class="form-group">
+          <label for="author-name">Name</label>
+
+          <input
+            type="text"
+            id="author-name"
+            name="authorName"
+            maxlength="100"
+            required
+          >
+        </div>
+      <% } %>
+
+      <div class="form-group">
+        <label for="comment-content">Comment</label>
+
+        <textarea
+          id="comment-content"
+          name="content"
+          maxlength="1000"
+          required
+        ></textarea>
+      </div>
+
+      <button type="submit">
+        Post Comment
+      </button>
+
+      <p id="comment-message"></p>
+
+    </form>
+
+
+    <!-- Existing comments -->
+    <div id="comments-list">
+
+      <% if (comments.length === 0) { %>
+
+        <p id="no-comments">
+          No comments yet. Be the first to comment.
+        </p>
+
+      <% } else { %>
+
+        <% comments.forEach(comment => { %>
+
+          <div class="comment" data-comment-id="<%= comment._id %>">
+
+            <div class="comment-header">
+
+              <strong>
+                <%= comment.authorName %>
+              </strong>
+
+              <span>
+                <%= new Date(comment.createdAt).toLocaleString() %>
+              </span>
+
+            </div>
+
+            <p class="comment-content">
+              <%= comment.content %>
+            </p>
+
+          </div>
+
+        <% }); %>
+
+      <% } %>
+
+    </div>
+
+  </section>
+
+</div>
+
+<script src="/js/article-view.js"></script>
+
+<%- include('../partials/footer') %>

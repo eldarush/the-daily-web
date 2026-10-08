@@ -25,6 +25,8 @@ const ARTICLE_STATUSES = ['draft', 'pending', 'published', 'rejected'];
 const pendingUpdateSchema = new mongoose.Schema(
   {
     hasUpdate: { type: Boolean, default: false },
+    status: { type: String, enum: ['draft', 'pending', 'rejected'], default: 'draft' },
+    editorNotes: { type: String, default: '' },
     title: { type: String, trim: true },
     summary: { type: String, trim: true },
     content: { type: String },
@@ -50,9 +52,9 @@ const publishedUpdateSchema = new mongoose.Schema(
 
 const articleSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, trim: true },
-    summary: { type: String, required: true, trim: true },
-    content: { type: String, required: true },
+    title: { type: String, default: '', trim: true },
+    summary: { type: String, default: '', trim: true },
+    content: { type: String, default: '' },
     category: {
       type: String,
       enum: ARTICLE_CATEGORIES,
@@ -68,6 +70,7 @@ const articleSchema = new mongoose.Schema(
       index: true
     },
     editorNotes: { type: String, default: '' },
+    saveVersion: { type: Number, default: 0 },
     viewsCount: { type: Number, default: 0, index: true },
     publishedAt: { type: Date, default: null, index: true },
 
@@ -94,3 +97,8 @@ const Article = mongoose.model('Article', articleSchema);
 module.exports = Article;
 module.exports.ARTICLE_CATEGORIES = ARTICLE_CATEGORIES;
 module.exports.ARTICLE_STATUSES = ARTICLE_STATUSES;
+
+module.exports.isComplete = function (fields) {
+  return ['title', 'summary', 'content'].every(key => typeof fields[key] === 'string' && fields[key].trim())
+    && ARTICLE_CATEGORIES.includes(fields.category);
+};

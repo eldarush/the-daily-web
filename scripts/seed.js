@@ -8,7 +8,7 @@
  *   - 15 live articles with a staged revision, for the diff demo
  *   - 168 hours of hourly view buckets per published article, with a visible
  *     readership bump after each editor update
- *   - comments (only if a teammate's Comment model is present)
+ *   - public comments
  *
  * Usage: npm run seed
  */
@@ -20,6 +20,7 @@ dotenv.config();
 const User = require('../models/User');
 const Article = require('../models/Article');
 const ViewAnalytics = require('../models/ViewAnalytics');
+const Comment = require('../models/Comment');
 
 const { ARTICLE_CATEGORIES } = Article;
 
@@ -75,7 +76,7 @@ function makeContent(title) {
 /** Builds one hourly view curve for a published article, with post-update bumps. */
 function buildViewBuckets(articleId, publishedAt, updateTimes) {
   const now = Date.now();
-  const start = now - HISTORY_HOURS * HOUR_MS;
+  const start = Math.floor(now / HOUR_MS) * HOUR_MS - HISTORY_HOURS * HOUR_MS;
   const buckets = [];
   const publishedMs = publishedAt ? publishedAt.getTime() : start;
 
@@ -117,13 +118,14 @@ function chooseStatus(index) {
 async function seed() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web';
   await mongoose.connect(mongoUri);
-  console.log('Connected to', mongoUri);
+  console.log('Connected to demo database');
 
   // Reset the collections this seeder owns.
   const seedUsernames = REPORTERS.map((r) => r.username).concat(EDITOR.username);
   await User.deleteMany({ username: { $in: seedUsernames } });
   await Article.deleteMany({});
   await ViewAnalytics.deleteMany({});
+  await Comment.deleteMany({});
   console.log('Cleared previous seed data');
 
   // Users (created individually so the bcrypt pre-save hook runs).
@@ -199,6 +201,7 @@ async function seed() {
     if (withRevision.has(article._id.toString())) {
       article.pendingUpdate = {
         hasUpdate: true,
+        status: 'pending',
         title: article.title + ' (revised)',
         summary: article.summary + ' Updated with the latest confirmed details.',
         content: article.content + '\n\nUPDATE: additional confirmation received from a second source.',
@@ -223,45 +226,27 @@ async function seed() {
   }
   console.log(`Seeded ${viewDocs.length} hourly view buckets`);
 
-  await seedCommentsIfAvailable(articles, editor);
+  await seedComments(articles);
 
   await mongoose.connection.close();
   console.log('\nDone. Log in with editor / reporter1..4, password: ' + SEED_PASSWORD);
 }
 
-/**
- * Seeds comments only if a teammate's Comment model exists — this module owns
- * Articles and ViewAnalytics, not Comments.
- */
-async function seedCommentsIfAvailable(articles, editor) {
-  let Comment;
-  try {
-    Comment = require('../models/Comment');
-  } catch (err) {
-    console.log('Comment model not present yet — skipping comment seeding');
-    return;
-  }
-  try {
-    const published = articles.filter((a) => a.status === 'published').slice(0, 60);
-    const docs = [];
-    for (const article of published) {
-      const n = randInt(0, 4);
-      for (let c = 0; c < n; c++) {
-        docs.push({
-          article: article._id,
-          author: editor._id,
-          authorName: 'Guest reader',
-          body: pick(['Great coverage.', 'Thanks for the update.', 'Any sources?', 'Well written.'], c)
-        });
-      }
+async function seedComments(articles) {
+  const published = articles.filter(a => a.status === 'published').slice(0, 60);
+  const docs = [];
+  for (const article of published) {
+    for (let c = 0; c < 2; c++) {
+      docs.push({
+        article: article._id,
+        authorName: 'Demo reader',
+        content: pick(['Great coverage.', 'Thanks for the update.'], c),
+        userIp: '127.0.0.1'
+      });
     }
-    if (docs.length > 0) {
-      await Comment.insertMany(docs, { ordered: false });
-    }
-    console.log(`Seeded ${docs.length} comments`);
-  } catch (err) {
-    console.log('Comment seeding skipped:', err.message);
   }
+  await Comment.insertMany(docs);
+  console.log(`Seeded ${await Comment.countDocuments()} comments`);
 }
 
 seed().catch(function (err) {

@@ -5,7 +5,10 @@ let storeInstance = null;
 
 function createSessionMiddleware() {
   const mongoUrl = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web';
-  const secret = process.env.SESSION_SECRET || 'the-daily-web-default-secret';
+  const secret = process.env.SESSION_SECRET;
+  if (typeof secret !== 'string' || !secret.trim() || (process.env.NODE_ENV === 'production' && secret.trim().length < 32)) {
+    throw new Error('SESSION_SECRET is required and must contain at least 32 characters in production.');
+  }
 
   storeInstance = MongoStore.create({
     mongoUrl: mongoUrl,

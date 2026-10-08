@@ -28,7 +28,7 @@ function pickEditableFields(body) {
  * @returns {Promise<{ article: any, error: { status: number, message: string } | null }>}
  */
 async function loadOwnedArticle(articleId, userId) {
-  if (!mongoose.isValidObjectId(articleId)) {
+  if (!mongoose.isObjectIdOrHexString(articleId)) {
     return { article: null, error: { status: 400, message: 'Invalid article id' } };
   }
   const article = await Article.findById(articleId);
@@ -54,7 +54,7 @@ async function getReporterArticles(req, res, next) {
 
     const [articles, total] = await Promise.all([
       Article.find(filter)
-        .sort({ updatedAt: -1 })
+        .sort({ updatedAt: -1, _id: -1 })
         .skip((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
         .lean(),
@@ -76,6 +76,9 @@ async function getReporterArticles(req, res, next) {
  */
 async function createArticle(req, res, next) {
   try {
+    if (!req.body || EDITABLE_FIELDS.some(key => req.body[key] !== undefined && typeof req.body[key] !== 'string')) {
+      return res.status(400).json({ error: 'Article fields must be strings' });
+    }
     const fields = pickEditableFields(req.body);
     if (fields.category !== undefined && !Article.ARTICLE_CATEGORIES.includes(fields.category)) {
       return res.status(400).json({ error: 'Invalid category' });
@@ -113,21 +116,34 @@ async function autosaveArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
+    if (!req.body || EDITABLE_FIELDS.some(key => req.body[key] !== undefined && typeof req.body[key] !== 'string')) {
+      return res.status(400).json({ error: 'Article fields must be strings' });
+    }
     const fields = pickEditableFields(req.body);
     if (fields.category !== undefined && !Article.ARTICLE_CATEGORIES.includes(fields.category)) {
       return res.status(400).json({ error: 'Invalid category' });
     }
 
+    const version = req.body.saveVersion === undefined ? article.saveVersion + 1 : req.body.saveVersion;
+    if (!Number.isSafeInteger(version) || version < 1) {
+      return res.status(400).json({ error: 'Invalid save version' });
+    }
     const now = new Date();
 
     if (article.status === 'published') {
+      if (article.pendingUpdate.status === 'pending') {
+        return res.status(400).json({ error: 'Cannot edit a revision awaiting approval' });
+      }
+      const previous = article.pendingUpdate.hasUpdate ? article.pendingUpdate : article;
       article.pendingUpdate = {
+        status: article.pendingUpdate.status,
+        editorNotes: article.pendingUpdate.editorNotes || '',
         hasUpdate: true,
-        title: fields.title ?? article.title,
-        summary: fields.summary ?? article.summary,
-        content: fields.content ?? article.content,
-        category: fields.category ?? article.category,
-        imageUrl: fields.imageUrl ?? article.imageUrl,
+        title: fields.title ?? previous.title,
+        summary: fields.summary ?? previous.summary,
+        content: fields.content ?? previous.content,
+        category: fields.category ?? previous.category,
+        imageUrl: fields.imageUrl ?? previous.imageUrl,
         updatedAt: now
       };
     } else if (article.status === 'draft' || article.status === 'rejected') {
@@ -136,8 +152,21 @@ async function autosaveArticle(req, res, next) {
       return res.status(400).json({ error: 'Cannot edit an article that is awaiting approval' });
     }
 
-    await article.save();
-    return res.json({ success: true, updatedAt: now });
+    await article.validate();
+    const filter = {
+      _id: article._id, status: article.status,
+      $or: [{ saveVersion: { $lte: version } }, { saveVersion: { $exists: false } }]
+    };
+    const update = { saveVersion: version };
+    if (article.status === 'published') {
+      filter['pendingUpdate.status'] = { $in: [article.pendingUpdate.status, null] };
+      update.pendingUpdate = article.pendingUpdate.toObject();
+    } else Object.assign(update, fields);
+    const result = await Article.updateOne(filter, { $set: update });
+    if (!result.matchedCount) {
+      return res.status(409).json({ error: 'A newer save or review state exists. Reload before editing.' });
+    }
+    return res.json({ success: true, updatedAt: now, saveVersion: version });
   } catch (err) {
     return next(err);
   }
@@ -157,15 +186,25 @@ async function submitArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
-    if (article.status !== 'draft' && article.status !== 'rejected') {
+    const candidate = article.status === 'published' ? article.pendingUpdate : article;
+    if (!Article.isComplete(candidate)) {
+      return res.status(400).json({ error: 'Title, summary, content and a valid category are required before submission' });
+    }
+    if (article.status === 'published') {
+      if (!article.pendingUpdate.hasUpdate || !['draft', 'rejected'].includes(article.pendingUpdate.status)) {
+        return res.status(400).json({ error: 'No editable revision to submit' });
+      }
+      article.pendingUpdate.status = 'pending';
+      article.pendingUpdate.editorNotes = '';
+    } else if (article.status !== 'draft' && article.status !== 'rejected') {
       return res.status(400).json({ error: `Cannot submit an article in '${article.status}' state` });
     }
 
-    article.status = 'pending';
+    if (article.status !== 'published') article.status = 'pending';
     article.editorNotes = '';
     await article.save();
 
-    return res.json({ success: true, status: article.status });
+    return res.json({ success: true, status: article.status, revisionStatus: article.pendingUpdate.status });
   } catch (err) {
     return next(err);
   }

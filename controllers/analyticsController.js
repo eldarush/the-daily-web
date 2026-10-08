@@ -78,4 +78,64 @@ async function getArticleAnalytics(req, res, next) {
   }
 }
 
-module.exports = { recordView, getArticleAnalytics, toHourBucket };
+async function listPublishedArticles(req, res, next) {
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  if (!Number.isSafeInteger(page) || page < 1) {
+    return res.status(400).json({ error: 'Invalid page' });
+  }
+  try {
+    const filter = { status: 'published' };
+    const [articles, total] = await Promise.all([
+      Article.find(filter).select('title').sort({ publishedAt: -1, _id: -1 })
+        .skip((page - 1) * 20).limit(20).lean(),
+      Article.countDocuments(filter)
+    ]);
+    return res.json({ articles, page, hasMore: page * 20 < total });
+  } catch (err) { return next(err); }
+}
+
+async function setViewBucket(req, res, next) {
+  const { articleId } = req.params;
+  const { time, views } = req.body;
+  if (!mongoose.isValidObjectId(articleId)) {
+    return res.status(400).json({ error: 'Invalid article id' });
+  }
+  const date = typeof time === 'string' ? new Date(time) : new Date(NaN);
+  if (!Number.isFinite(date.getTime()) || date.getTime() !== toHourBucket(date).getTime() ||
+      !Number.isSafeInteger(views) || views < 0) {
+    return res.status(400).json({ error: 'Provide a UTC hour and a nonnegative integer view count' });
+  }
+  try {
+    if (!await Article.exists({ _id: articleId })) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    const previous = await ViewAnalytics.findOneAndUpdate(
+      { article: articleId, timestampBucket: date }, { $set: { views } },
+      { upsert: true, new: false, runValidators: true }
+    );
+    await Article.findByIdAndUpdate(articleId, { $inc: { viewsCount: views - (previous ? previous.views : 0) } });
+    return res.json({ time: date, views });
+  } catch (err) { return next(err); }
+}
+
+async function resetArticleAnalytics(req, res, next) {
+  const { articleId } = req.params;
+  if (!mongoose.isValidObjectId(articleId)) {
+    return res.status(400).json({ error: 'Invalid article id' });
+  }
+  try {
+    const article = await Article.findById(articleId);
+    if (!article) return res.status(404).json({ error: 'Article not found' });
+    const records = await ViewAnalytics.find({ article: articleId }).select('_id');
+    let removedViews = 0;
+    for (const record of records) {
+      const removed = await ViewAnalytics.findByIdAndDelete(record._id);
+      if (removed) removedViews += removed.views;
+    }
+    // Subtract only deleted counts; new views can keep arriving during reset.
+    await Article.findByIdAndUpdate(articleId, { $inc: { viewsCount: -removedViews } });
+    return res.json({ message: 'View statistics reset' });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { recordView, getArticleAnalytics, toHourBucket, listPublishedArticles, setViewBucket, resetArticleAnalytics };

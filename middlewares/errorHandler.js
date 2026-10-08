@@ -1,34 +1,35 @@
 function errorHandler(err, req, res, next) {
-  const statusCode = err.statusCode || err.status || 500;
-  const timestamp = new Date().toISOString();
-  
-  console.error(`[${timestamp}] [ERROR] ${req.method} ${req.originalUrl}:`, err.message);
-  if (process.env.NODE_ENV !== 'production' && err.stack) {
-    console.error(err.stack);
-  }
+  if (res.headersSent) return next(err);
+  let statusCode = err.statusCode || err.status || 500;
+  let message = 'An unexpected internal error occurred.';
 
-  // Handle Mongoose duplicate key error
-  if (err.code === 11000) {
-    const field = Object.keys(err.keyValue || {})[0] || 'field';
-    return res.status(400).json({ error: `A record with this ${field} already exists.` });
-  }
-
-  // Handle Mongoose validation errors
-  if (err.name === 'ValidationError') {
-    const messages = Object.values(err.errors || {}).map(e => e.message);
-    return res.status(400).json({ error: messages.join(', ') });
+  if (err.type === 'entity.parse.failed') {
+    statusCode = 400;
+    message = 'Invalid JSON body.';
+  } else if (err.type === 'entity.too.large') {
+    statusCode = 413;
+    message = 'Request body is too large.';
+  } else if (err.code === 11000) {
+    statusCode = 400;
+    message = 'A record with this field already exists.';
+  } else if (err.name === 'ValidationError') {
+    statusCode = 400;
+    message = 'Invalid input. Check required fields and length limits.';
+  } else if (err.name === 'CastError') {
+    statusCode = 400;
+    message = 'Invalid resource ID.';
+  } else if (statusCode >= 400 && statusCode < 500) {
+    message = err.message || message;
+  } else {
+    statusCode = 500;
+    // Do not log request bodies, query values, credentials, or exception messages.
+    console.error(`[${new Date().toISOString()}] Request failed`, { method: req.method, errorType: err.name || 'Error' });
   }
 
   if (req.xhr || req.path?.startsWith('/api') || req.originalUrl?.startsWith('/api') || req.headers?.accept?.includes('application/json')) {
-    return res.status(statusCode).json({
-      error: err.message || 'An unexpected internal error occurred.'
-    });
+    return res.status(statusCode).json({ error: message });
   }
-
-  res.status(statusCode).render('pages/error', {
-    title: 'Error',
-    message: err.message || 'An unexpected error occurred.'
-  });
+  return res.status(statusCode).render('pages/error', { title: 'Error', message });
 }
 
 module.exports = { errorHandler };

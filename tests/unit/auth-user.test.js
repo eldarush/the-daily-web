@@ -6,6 +6,7 @@ let app;
 let request;
 let User;
 let weatherController;
+const originalFetch = global.fetch;
 
 describe('Authentication, User Management & Weather Service', () => {
   let reporterUser;
@@ -258,10 +259,62 @@ describe('Authentication, User Management & Weather Service', () => {
     });
   });
 
+  describe('Session and malformed-input regressions', () => {
+    beforeAll(async () => { editorAgent = request.agent(app); await editorAgent.post('/api/auth/login').send({ username: 'test_ed_1', password: 'password123' }); });
+    test('login rejects non-string credentials and malformed JSON', async () => {
+      for (const body of [{ username: {}, password: 'password123' }, { username: 'test_rep_1', password: 123 }, { username: '   ', password: 'password123' }]) {
+        expect((await request(app).post('/api/auth/login').send(body)).status).toBe(400);
+      }
+      const malformed = await request(app).post('/api/auth/login').set('Content-Type', 'application/json').send('{bad');
+      expect(malformed.status).toBe(400);
+      expect(malformed.body.error).toBe('Invalid JSON body.');
+    });
+
+    test('deleted accounts lose API and web access with their existing cookie', async () => {
+      const user = await User.create({ username: 'deleted_session', password: 'password123', fullName: 'Deleted User' });
+      const agent = request.agent(app);
+      await agent.post('/api/auth/login').send({ username: user.username, password: 'password123' });
+      await editorAgent.delete(`/api/users/${user._id}`);
+      expect((await agent.get('/api/reporter/articles')).status).toBe(401);
+      expect((await agent.post('/api/reporter/articles').send({ title: 'Invalid access' })).status).toBe(401);
+      expect((await agent.get('/workspace')).headers.location).toBe('/login');
+    });
+
+    test('demoted editor loses privileges and refreshed /me reports the current role', async () => {
+      const user = await User.create({ username: 'demoted_session', password: 'password123', fullName: 'Demoted User', role: 'editor' });
+      const agent = request.agent(app);
+      await agent.post('/api/auth/login').send({ username: user.username, password: 'password123' });
+      await editorAgent.put(`/api/users/${user._id}`).send({ role: 'reporter' });
+      expect((await agent.get('/api/users')).status).toBe(403);
+      expect((await agent.get('/editor')).status).toBe(403);
+      expect((await agent.get('/api/auth/me')).body.user.role).toBe('reporter');
+    });
+
+    test('user inputs reject malformed types and IDs without exposing passwords', async () => {
+      expect((await editorAgent.get('/api/users/not-an-id')).status).toBe(400);
+      expect((await editorAgent.put('/api/users/not-an-id').send({})).status).toBe(400);
+      expect((await editorAgent.delete('/api/users/not-an-id')).status).toBe(400);
+      expect((await editorAgent.post('/api/users').send({ username: {}, password: 'password123', fullName: 'Name' })).status).toBe(400);
+      expect((await editorAgent.put(`/api/users/${reporterUser._id}`).send({ fullName: 7 })).status).toBe(400);
+      const users = await editorAgent.get('/api/users');
+      expect(users.status).toBe(200);
+      expect(users.body.users.every(user => user.password === undefined)).toBe(true);
+    });
+
+    test('missing session secret fails before a session store is created', () => {
+      const previous = process.env.SESSION_SECRET;
+      delete process.env.SESSION_SECRET;
+      try { expect(() => require('../../config/session').createSessionMiddleware()).toThrow(/SESSION_SECRET/); }
+      finally { process.env.SESSION_SECRET = previous; }
+    });
+  });
+
   describe('Weather Service with 15-Minute Cache (/api/weather)', () => {
     beforeEach(() => {
       weatherController.resetWeatherCache();
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ current: { time: Math.floor(Date.now() / 1000), temperature_2m: 24.2, weather_code: 0 } }) });
     });
+    afterEach(() => { global.fetch = originalFetch; });
 
     test('GET /api/weather returns valid weather payload', async () => {
       const res = await request(app).get('/api/weather');
@@ -278,24 +331,22 @@ describe('Authentication, User Management & Weather Service', () => {
       const secondRes = await request(app).get('/api/weather');
       expect(secondRes.status).toBe(200);
       expect(secondRes.body.cached).toBe(true);
-      expect(typeof secondRes.body.cacheAgeSeconds).toBe('number');
+      expect(secondRes.body.fetchedAt).toBeDefined();
     });
 
-    test('fetchWeather handles successful OpenWeatherMap API responses', async () => {
+    test('fetchWeather handles successful Open-Meteo responses', async () => {
       const originalFetch = global.fetch;
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          name: 'Haifa',
-          main: { temp: 24.2 },
-          weather: [{ description: 'Sunny', icon: '01d' }]
+          current: { time: Math.floor(Date.now() / 1000), temperature_2m: 24.2, weather_code: 0 }
         })
       });
 
       const data = await weatherController.fetchWeather('Haifa', 'mock_api_key');
       expect(data.city).toBe('Haifa');
       expect(data.temp).toBe(24);
-      expect(data.description).toBe('Sunny');
+      expect(data.description).toBe('Clear sky');
 
       global.fetch = originalFetch;
     });
@@ -304,9 +355,7 @@ describe('Authentication, User Management & Weather Service', () => {
       const originalFetch = global.fetch;
       global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
 
-      const data = await weatherController.fetchWeather('Jerusalem', 'mock_key');
-      expect(data.city).toBe('Jerusalem');
-      expect(data.temp).toBe(26);
+      await expect(weatherController.fetchWeather('Jerusalem')).rejects.toThrow('Network error');
 
       global.fetch = originalFetch;
     });
@@ -401,7 +450,7 @@ describe('Authentication, User Management & Weather Service', () => {
       const res2 = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       errorHandler(valError, req1, res2, jest.fn());
       expect(res2.status).toHaveBeenCalledWith(400);
-      expect(res2.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'field1 is required' }));
+      expect(res2.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Invalid input. Check required fields and length limits.' }));
 
       // 3. Web HTML generic error
       const genericError = new Error('Database unreachable');
@@ -409,7 +458,7 @@ describe('Authentication, User Management & Weather Service', () => {
       const req3 = { originalUrl: '/news', path: '/news', headers: {} };
       errorHandler(genericError, req3, res3, jest.fn());
       expect(res3.status).toHaveBeenCalledWith(500);
-      expect(res3.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'Database unreachable' }));
+      expect(res3.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'An unexpected internal error occurred.' }));
     });
 
     test('requireAuth redirects unauthenticated web requests to /login', () => {
@@ -423,7 +472,7 @@ describe('Authentication, User Management & Weather Service', () => {
     test('requireRole passes to next() when user has matching role', () => {
       const { requireRole } = require('../../middlewares/rbac');
       const nextFn = jest.fn();
-      requireRole('reporter')({ session: { user: { role: 'reporter' } }, headers: {} }, {}, nextFn);
+      requireRole('reporter')({ currentUser: { role: 'reporter' }, headers: {} }, {}, nextFn);
       expect(nextFn).toHaveBeenCalled();
     });
 
@@ -432,13 +481,13 @@ describe('Authentication, User Management & Weather Service', () => {
 
       // Web forbidden render
       const resWeb403 = { status: jest.fn().mockReturnThis(), render: jest.fn() };
-      requireRole('editor')({ session: { user: { role: 'reporter' } }, originalUrl: '/editor-hub', headers: {} }, resWeb403, jest.fn());
+      requireRole('editor')({ currentUser: { role: 'reporter' }, originalUrl: '/editor-hub', headers: {} }, resWeb403, jest.fn());
       expect(resWeb403.status).toHaveBeenCalledWith(403);
       expect(resWeb403.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ title: 'Access Denied' }));
 
       // API path forbidden JSON
       const resApiPath = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-      requireRole('editor')({ session: { user: { role: 'reporter' } }, path: '/api/admin', headers: {} }, resApiPath, jest.fn());
+      requireRole('editor')({ currentUser: { role: 'reporter' }, path: '/api/admin', headers: {} }, resApiPath, jest.fn());
       expect(resApiPath.status).toHaveBeenCalledWith(403);
     });
 
@@ -506,61 +555,44 @@ describe('Authentication, User Management & Weather Service', () => {
 
       // updateUser with invalid role (ignored) and empty body
       const resInvalidRole = await editorAgent.put(`/api/users/${resDef.body.user.id}`).send({ role: 'superuser' });
-      expect(resInvalidRole.status).toBe(200);
-      expect(resInvalidRole.body.user.role).toBe('reporter');
+      expect(resInvalidRole.status).toBe(400);
 
       const resEmptyBody = await editorAgent.put(`/api/users/${resDef.body.user.id}`).send({});
       expect(resEmptyBody.status).toBe(200);
     });
 
-    test('weatherController and fetchWeather comprehensive branch coverage', async () => {
-      // 1. fetchWeather with empty string apiKey
-      const dataEmptyKey = await weatherController.fetchWeather('Eilat', '  ');
-      expect(dataEmptyKey.city).toBe('Eilat');
-      expect(dataEmptyKey.cached).toBe(false);
-
-      // 2. fetchWeather with omitted city
-      const dataNoCity = await weatherController.fetchWeather(undefined, undefined);
-      expect(dataNoCity.city).toBe('Tel Aviv');
-
-      // 3. fetchWeather with API returning ok: false
-      const origFetch = global.fetch;
-      global.fetch = jest.fn().mockResolvedValueOnce({ ok: false });
-      const dataFailedApi = await weatherController.fetchWeather('Beer Sheva', 'valid_key');
-      expect(dataFailedApi.city).toBe('Beer Sheva');
-
-      // 4. fetchWeather with API returning partial data (missing name, missing weather array)
-      global.fetch = jest.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ main: { temp: 22.8 } })
-      });
-      const dataPartial = await weatherController.fetchWeather('Netanya', 'valid_key');
-      expect(dataPartial.city).toBe('Netanya');
-      expect(dataPartial.description).toBe('Clear');
-      expect(dataPartial.icon).toBe('01d');
-
-      // 5. getWeather error handling
-      const nextWeatherErr = jest.fn();
-      const origFetchWeather = weatherController.fetchWeather;
-      weatherController.fetchWeather = jest.fn().mockRejectedValueOnce(new Error('Weather crash'));
-      await weatherController.getWeather({}, {}, nextWeatherErr);
-      expect(nextWeatherErr).toHaveBeenCalledWith(expect.any(Error));
-      weatherController.fetchWeather = origFetchWeather;
-
-      // 6. getWeather with custom process.env.WEATHER_CITY and default fallback
-      weatherController.resetWeatherCache();
-      process.env.WEATHER_CITY = 'Haifa';
-      const resCustomCity = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-      await weatherController.getWeather({}, resCustomCity, jest.fn());
-      expect(resCustomCity.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Haifa' }));
-
-      weatherController.resetWeatherCache();
-      delete process.env.WEATHER_CITY;
-      const resDefCity = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-      await weatherController.getWeather({}, resDefCity, jest.fn());
-      expect(resDefCity.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Tel Aviv' }));
-
-      global.fetch = origFetch;
+    test('weather provider validation, descriptions and custom coordinates', async () => {
+      const originalFetch = global.fetch;
+      const makeResponse = (code = 0) => ({ current: { time: Math.floor(Date.now() / 1000), temperature_2m: 22, weather_code: code } });
+      try {
+        for (const code of [0, 3, 45, 61, 71, 80, 85, 95]) {
+          global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => makeResponse(code) });
+          expect((await weatherController.fetchWeather()).description).toEqual(expect.any(String));
+        }
+        global.fetch = jest.fn().mockResolvedValue({ ok: false });
+        await expect(weatherController.fetchWeather()).rejects.toThrow('Weather provider unavailable');
+        for (const current of [undefined, {}, { time: 1, temperature_2m: '22' }, { time: 1, temperature_2m: 22, weather_code: '0' }, { time: 'invalid', temperature_2m: 22, weather_code: 0 }]) {
+          global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ current }) });
+          await expect(weatherController.fetchWeather()).rejects.toThrow('Invalid weather response');
+        }
+        global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ current: { ...makeResponse().current, time: Math.floor(Date.now() / 1000) + 60 } }) });
+        await expect(weatherController.fetchWeather()).rejects.toThrow('out of date');
+        process.env.WEATHER_CITY = 'Haifa';
+        process.env.WEATHER_LATITUDE = '32.794';
+        process.env.WEATHER_LONGITUDE = '34.989';
+        global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => makeResponse() });
+        weatherController.resetWeatherCache();
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await weatherController.getWeather({}, res);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Haifa' }));
+        expect(global.fetch.mock.calls[0][0]).toContain('latitude=32.794');
+      } finally {
+        delete process.env.WEATHER_CITY;
+        delete process.env.WEATHER_LATITUDE;
+        delete process.env.WEATHER_LONGITUDE;
+        global.fetch = originalFetch;
+        weatherController.resetWeatherCache();
+      }
     });
 
     test('errorHandler all branch variations', () => {
@@ -585,7 +617,7 @@ describe('Authentication, User Management & Weather Service', () => {
       // ValidationError with empty errors
       const resVal = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       errorHandler({ name: 'ValidationError' }, { originalUrl: '/api/data' }, resVal, jest.fn());
-      expect(resVal.json).toHaveBeenCalledWith({ error: '' });
+      expect(resVal.json).toHaveBeenCalledWith({ error: 'Invalid input. Check required fields and length limits.' });
 
       // Production mode stack suppression
       const prevEnv = process.env.NODE_ENV;
@@ -598,12 +630,12 @@ describe('Authentication, User Management & Weather Service', () => {
       // req.xhr branch
       const resXhr = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       errorHandler(new Error('XHR fail'), { xhr: true }, resXhr, jest.fn());
-      expect(resXhr.json).toHaveBeenCalledWith({ error: 'XHR fail' });
+      expect(resXhr.json).toHaveBeenCalledWith({ error: 'An unexpected internal error occurred.' });
 
       // Web error with empty message
       const resWebEmpty = { status: jest.fn().mockReturnThis(), render: jest.fn() };
       errorHandler({}, { originalUrl: '/page', path: '/page', headers: {} }, resWebEmpty, jest.fn());
-      expect(resWebEmpty.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'An unexpected error occurred.' }));
+      expect(resWebEmpty.render).toHaveBeenCalledWith('pages/error', expect.objectContaining({ message: 'An unexpected internal error occurred.' }));
     });
   });
 });
