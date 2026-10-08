@@ -14,6 +14,8 @@ const weatherRoutes = require('./routes/api/weatherRoutes');
 const reporterRoutes = require('./routes/api/reporterRoutes');
 const editorRoutes = require('./routes/api/editorRoutes');
 const analyticsRoutes = require('./routes/api/analyticsRoutes');
+const commentRoutes = require('./routes/api/commentRoutes');
+const webRoutes = require('./routes/webRoutes');
 
 const app = express();
 
@@ -39,6 +41,8 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/reporter', reporterRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api', commentRoutes);
+app.use('/', webRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
