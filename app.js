@@ -5,6 +5,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const { createSessionMiddleware } = require('./config/session');
+const { loadCurrentUser, requireAuth } = require('./middlewares/auth');
+const { requireRole } = require('./middlewares/rbac');
 const { errorHandler } = require('./middlewares/errorHandler');
 const Article = require('./models/Article');
 
@@ -15,9 +17,13 @@ const reporterRoutes = require('./routes/api/reporterRoutes');
 const editorRoutes = require('./routes/api/editorRoutes');
 const analyticsRoutes = require('./routes/api/analyticsRoutes');
 const feedRoutes = require('./routes/api/feedRoutes');
+const commentRoutes = require('./routes/api/commentRoutes');
 const webRoutes = require('./routes/webRoutes');
 
 const app = express();
+app.locals.currentUser = null;
+app.locals.path = '';
+
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -29,9 +35,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(createSessionMiddleware());
+app.use(loadCurrentUser);
 
 app.use((req, res, next) => {
-  res.locals.currentUser = (req.session && req.session.user) ? req.session.user : null;
+  res.locals.currentUser = req.currentUser;
   res.locals.path = req.path;
   next();
 });
@@ -44,6 +51,7 @@ app.use('/api/reporter', reporterRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/articles', feedRoutes);
+app.use('/api', commentRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
@@ -59,7 +67,7 @@ app.get('/login', (req, res) => {
 
 app.use('/', webRoutes);
 
-app.get('/workspace', (req, res) => {
+app.get('/workspace', requireAuth, (req, res) => {
   if (!req.session || !req.session.user) {
     return res.redirect('/login');
   }
@@ -70,7 +78,7 @@ app.get('/workspace', (req, res) => {
   });
 });
 
-app.get('/editor', (req, res) => {
+app.get('/editor', requireRole('editor'), (req, res) => {
   if (!req.session || !req.session.user) {
     return res.redirect('/login');
   }
@@ -88,7 +96,7 @@ app.get('/editor', (req, res) => {
   });
 });
 
-app.get('/editor/analytics', (req, res) => {
+app.get('/editor/analytics', requireRole('editor'), (req, res) => {
   if (!req.session || !req.session.user) {
     return res.redirect('/login');
   }

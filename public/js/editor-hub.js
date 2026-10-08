@@ -72,7 +72,7 @@
       const tr = document.createElement('tr');
       const author = article.author && article.author.fullName ? article.author.fullName : 'Unknown';
       const staged = article.pendingUpdate && article.pendingUpdate.hasUpdate
-        ? ' <span class="revision-flag" title="Has a proposed revision">✎ revision</span>'
+        ? ' <span class="revision-flag" title="Has a proposed revision">✎ revision ' + article.pendingUpdate.status + '</span>'
         : '';
       tr.innerHTML =
         '<td>' + escapeHtml(article.title) + staged + '</td>' +
@@ -128,7 +128,11 @@
       const res = await fetch('/api/editor/articles/' + id + '/diff');
       if (!res.ok) return;
       const body = await res.json();
-      fillEditForm(body.live);
+      fillEditForm(body.pending || body.live);
+      const submitted = body.status === 'pending' || (body.status === 'published' && body.pending && body.pending.status === 'pending');
+      document.getElementById('btn-approve').disabled = !submitted;
+      document.getElementById('btn-reject').disabled = !submitted;
+      modalStatus.textContent = body.pending ? 'Revision: ' + body.pending.status : body.status;
 
       if (body.pending) {
         const diff = window.DiffViewer.render(combined(body.live), combined(body.pending));
