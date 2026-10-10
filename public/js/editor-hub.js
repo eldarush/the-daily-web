@@ -29,6 +29,7 @@
   let total = 0;
   let pageSize = 20;
   let currentId = null;
+  // Closed reviews and superseded table requests must ignore late responses.
   let modalVersion = 0;
   let tableVersion = 0;
   let actionVersion = null;
@@ -79,7 +80,7 @@
       const tr = document.createElement('tr');
       const author = article.author && article.author.fullName ? article.author.fullName : 'Unknown';
       const staged = article.pendingUpdate && article.pendingUpdate.hasUpdate
-        ? ' <span class="revision-flag" title="Has a proposed revision">✎ revision ' + article.pendingUpdate.status + '</span>'
+        ? ' <span class="revision-flag" title="Has a proposed revision">revision ' + article.pendingUpdate.status + '</span>'
         : '';
       tr.innerHTML =
         '<td>' + escapeHtml(article.title) + staged + '</td>' +
@@ -178,6 +179,7 @@
     const version = modalVersion;
     if (actionVersion === version) return false;
     actionVersion = version;
+    // Keep the submitted snapshot fixed while the request is in flight.
     const controls = Object.values(EDIT_FIELDS).map(id => document.getElementById(id)).concat(btnEdit);
     const disabled = controls.map(control => control.disabled);
     controls.forEach(control => { control.disabled = true; });
@@ -197,6 +199,7 @@
       modalStatus.textContent = 'Network error';
       return false;
     } finally {
+      // An old request must not restore controls belonging to a newer review.
       if (version === modalVersion) controls.forEach((control, i) => { control.disabled = disabled[i]; });
       if (actionVersion === version) actionVersion = null;
     }
