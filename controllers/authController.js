@@ -17,7 +17,8 @@ async function login(req, res, next) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
-    // Logging in = saving the user's id and role in the server-side session.
+    // Replace the guest session before attaching an authenticated identity.
+    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.user = {
       id: user._id.toString(),
       username: user.username,

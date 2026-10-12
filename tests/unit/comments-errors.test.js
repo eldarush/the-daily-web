@@ -7,8 +7,9 @@ const articles = require('../../controllers/articleController');
 const { guestCommentLimiter } = require('../../middlewares/rateLimiter');
 
 const id = new mongoose.Types.ObjectId().toString();
+beforeAll(() => { process.env.SESSION_SECRET = 'comment-error-isolated-test-secret'; });
 function response() {
-    const res = { status: jest.fn(), json: jest.fn(), render: jest.fn(), set: jest.fn() };
+    const res = { status: jest.fn(), json: jest.fn(), render: jest.fn(), set: jest.fn(), cookie: jest.fn() };
     res.status.mockReturnValue(res);
     return res;
 }

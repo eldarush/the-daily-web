@@ -266,6 +266,7 @@ describe('Article Comments & Guest Spam Protection', () => {
         const sessionID = signedCookie.slice(2, signedCookie.lastIndexOf('.'));
         let freshStatus;
         await freshLimiter({sessionID, session: {save: callback => callback()}}, {
+            cookie: () => {},
             set: () => {}, status: status => { freshStatus = status; return {json: () => {}}; }
         }, error => { if (error) throw error; });
         expect(freshStatus).toBe(429);
