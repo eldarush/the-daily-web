@@ -10,6 +10,15 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 afterEach(() => jest.restoreAllMocks());
 
 describe('Authentication boundary cases', () => {
+  test('session rotation failures prevent authentication and reach shared error handling', async () => {
+    const failure = new Error('Session rotation unavailable');
+    jest.spyOn(User, 'findOne').mockResolvedValue({ comparePassword: async () => true });
+    const req = { body: { username: 'valid', password: 'valid' }, session: { regenerate: callback => callback(failure) } };
+    const next = jest.fn();
+    await authController.login(req, response(), next);
+    expect(next).toHaveBeenCalledWith(failure);
+    expect(req.session.user).toBeUndefined();
+  });
   test('malformed stored identities are removed without a database query', async () => {
     const lookup = jest.spyOn(User, 'findById');
     for (const id of ['bad-id', { value: '012345678901234567890123' }, undefined]) {

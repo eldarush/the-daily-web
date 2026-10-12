@@ -1,4 +1,4 @@
-const { createHash } = require('crypto');
+const { createHash, createHmac, timingSafeEqual } = require('crypto');
 const GuestCommentLimit = require('../models/GuestCommentLimit');
 const WINDOW_MS = 60 * 1000;
 const MAX_COMMENTS = 3;
@@ -11,9 +11,16 @@ exports.guestCommentLimiter = async (req, res, next) => {
         // Make sure this browser has a saved session, so it has a stable session id.
         req.session.commentDevice = true;
         await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-        // The limit is per browser session, not per IP (people behind one network share an IP).
+        // Keep separate browser identities for people behind a shared IP.
         // Stored as a SHA-256 hash, so the raw session id never sits in this collection.
-        const id = createHash('sha256').update(req.sessionID).digest('hex');
+        let id = createHash('sha256').update(req.sessionID).digest('hex');
+        const signature = value => createHmac('sha256', process.env.SESSION_SECRET).update(value).digest('hex');
+        const device = req.headers?.cookie?.match(/(?:^|;\s*)daily_web_device=([a-f0-9]{64})\.([a-f0-9]{64})(?:;|$)/);
+        if (device && timingSafeEqual(Buffer.from(device[2]), Buffer.from(signature(device[1])))) id = device[1];
+        // A signed browser identity outlives login sessions; erased cookies still create a new identity.
+        res.cookie('daily_web_device', id + '.' + signature(id), {
+            httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 365 * 24 * 60 * 60 * 1000
+        });
         const now = new Date();
         const cutoff = new Date(now.getTime() - WINDOW_MS);
         const expiresAt = new Date(now.getTime() + WINDOW_MS);
