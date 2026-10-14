@@ -9,7 +9,7 @@ const EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'imageUrl'];
 /**
  * Picks only the whitelisted editable fields from a request body.
  * @param {Record<string, any>} body - Raw request body.
- * @returns {Record<string, any>} Sanitized subset.
+ * @returns {Record<string, any>} Editable subset; callers validate field types.
  */
 function pickEditableFields(body) {
   const out = {};
@@ -71,7 +71,7 @@ async function getReporterArticles(req, res, next) {
  * Creates a new draft article owned by the session reporter. Provides the id
  * that the autosave engine then writes into.
  * @param {import('express').Request} req - Optional partial body.
- * @param {import('express').Response} res - JSON { id } with 201.
+ * @param {import('express').Response} res - JSON { id, updatedAt } with 201.
  * @returns {Promise<void>}
  */
 async function createArticle(req, res, next) {
@@ -106,7 +106,7 @@ async function createArticle(req, res, next) {
  * article, edits are written straight to the primary fields. Editing an article
  * that is awaiting approval is refused.
  * @param {import('express').Request} req - Params.id, body of editable fields.
- * @param {import('express').Response} res - JSON { success, updatedAt }.
+ * @param {import('express').Response} res - JSON { success, updatedAt, saveVersion }.
  * @returns {Promise<void>}
  */
 async function autosaveArticle(req, res, next) {
@@ -176,10 +176,10 @@ async function autosaveArticle(req, res, next) {
 }
 
 /**
- * Submits a draft or rejected article for editor review (→ pending). Any other
- * source state is an illegal transition and refused.
+ * Submits a draft/rejected article or an editable revision of a published article.
+ * The submitted article or revision becomes pending; published fields stay live.
  * @param {import('express').Request} req - Params.id.
- * @param {import('express').Response} res - JSON { success, status }.
+ * @param {import('express').Response} res - JSON { success, status, revisionStatus }.
  * @returns {Promise<void>}
  */
 async function submitArticle(req, res, next) {

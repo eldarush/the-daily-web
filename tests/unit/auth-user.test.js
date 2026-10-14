@@ -573,7 +573,7 @@ describe('Authentication, User Management & Weather Service', () => {
       expect(resDef.status).toBe(201);
       expect(resDef.body.user.role).toBe('reporter');
 
-      // updateUser with invalid role (ignored) and empty body
+      // Invalid roles are rejected; an empty update is accepted.
       const resInvalidRole = await editorAgent.put(`/api/users/${resDef.body.user.id}`).send({ role: 'superuser' });
       expect(resInvalidRole.status).toBe(400);
 

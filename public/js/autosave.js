@@ -1,6 +1,5 @@
-/* Reporter workspace: continuous autosave engine (no manual save button).
-   Work persists to the server and to localStorage on every edit, and the last
-   version is restored on reload or when switching machines. */
+/* Reporter workspace: capture edits locally, then debounce server saves.
+   Reloads can recover local edits; another browser sees the last successful server save. */
 (function () {
   'use strict';
 
@@ -43,7 +42,6 @@
     rejectionNotes.textContent = article.status === 'published' ? article.pendingUpdate.editorNotes || '' : article.editorNotes || '';
   }
 
-  /** Reads the editable fields out of the form into a plain object. */
   function readForm() {
     return {
       title: document.getElementById('article-title-input').value,
@@ -54,7 +52,6 @@
     };
   }
 
-  /** Writes a field object into the form controls. */
   function writeForm(data) {
     document.getElementById('article-title-input').value = data.title || '';
     document.getElementById('article-summary-input').value = data.summary || '';
@@ -63,13 +60,11 @@
     document.getElementById('article-image').value = data.imageUrl || '';
   }
 
-  /** Sets the autosave status pill. */
   function setBadge(state, text) {
     badgeEl.className = 'autosave-badge ' + state;
     badgeEl.textContent = text;
   }
 
-  /** Human-readable HH:MM:SS for the "saved" badge. */
   function nowTime() {
     return new Date().toLocaleTimeString();
   }
@@ -179,6 +174,7 @@
     if (!currentId) return;
     const data = readForm();
     const local = readLocalBackup(currentId);
+    // Advance past both the server version and any newer local recovery copy.
     data.saveVersion = Math.max(versions.get(currentId) || 0, currentArticle.saveVersion || 0, local && local.data.saveVersion || 0) + 1;
     versions.set(currentId, data.saveVersion);
     writeLocalBackup(currentId, data);
@@ -187,6 +183,7 @@
 
   function flush() {
     clearTimeout(debounceTimer);
+    // Serialize server writes so an older save cannot finish after a newer one.
     saving = saving.then(async function () {
       while (pending.size) {
         const [id, data] = pending.entries().next().value;
