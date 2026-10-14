@@ -88,6 +88,8 @@ function buildViewBuckets(articleId, publishedAt, updateTimes) {
     const ageHours = (now - bucketMs) / HOUR_MS;
     const freshness = Math.max(0.2, 1 - ageHours / HISTORY_HOURS); // newer hours busier
 
+    // Synthetic traffic for demonstrating markers, not real audience evidence
+    // or proof that an editorial update causes a traffic increase.
     // Readership bump in the ~12h after each editor update.
     let bump = 1;
     updateTimes.forEach(function (t) {
@@ -119,6 +121,9 @@ async function seed() {
   await mongoose.connect(mongoUri);
   console.log('Connected to demo database');
 
+  // Destructive demo reset: all articles/comments/view buckets are replaced,
+  // while only the named demo users are recreated. Other accounts, sessions and
+  // guest-limit records remain. Run only against a disposable selected database.
   // Reset the collections this seeder owns.
   const seedUsernames = REPORTERS.map((r) => r.username).concat(EDITOR.username);
   await User.deleteMany({ username: { $in: seedUsernames } });
@@ -166,6 +171,8 @@ async function seed() {
     articleDocs.push(doc);
   }
 
+  // Bulk insertion is appropriate for generated articles; User.create above is
+  // intentionally separate because account passwords need the save hook.
   const articles = await Article.insertMany(articleDocs);
   console.log(`Seeded ${articles.length} articles`);
 

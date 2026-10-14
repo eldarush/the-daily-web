@@ -32,10 +32,13 @@ app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : false);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Large reading histories are sent in JSON instead of a long URL.
+// The same feed loader serves HTML and JSON; read/unread searches POST their ID
+// list without changing articles. Register this larger parser before the default
+// parser, which would otherwise reject the body before the route is reached.
 app.use('/api/articles/search', express.json({ limit: '1mb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Matching assets finish here and do not need a session or account lookup.
 app.use(express.static(path.join(__dirname, 'public')));
 // the browser build of chart.js, straight from node_modules
 app.use('/vendor/chart.js', express.static(path.join(__dirname, 'node_modules/chart.js/dist')));

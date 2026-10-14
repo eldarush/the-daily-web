@@ -16,6 +16,8 @@ router.use(requireRole('editor'));
 
 router.get('/articles', listAllArticles);
 router.get('/articles/:id/diff', getArticleDiff);
+// These actions operate on the controller-selected candidate: submitted original
+// text or a staged revision. Only approval promotes that candidate to public fields.
 router.put('/articles/:id', editArticle);
 router.post('/articles/:id/approve', approveArticle);
 router.post('/articles/:id/reject', rejectArticle);

@@ -17,6 +17,8 @@ async function login(req, res, next) {
     }
 
     // Replace the guest session before attaching an authenticated identity.
+    // Await regeneration: setting user on the old session first would either lose
+    // that assignment or keep an identifier known before authentication.
     await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.user = {
       id: user._id.toString(),

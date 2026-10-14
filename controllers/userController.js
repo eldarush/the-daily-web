@@ -4,8 +4,12 @@ const validId = id => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id);
 const validString = value => typeof value === 'string' && value.trim().length > 0;
 const validRole = value => ['reporter', 'editor'].includes(value);
 
+// Express 4 does not forward rejected async handlers automatically. Adapt each
+// handler here so thrown database/model errors reach the central error middleware.
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// Editor API search is literal and the result is unpaginated. Only recognized
+// role strings add a role filter; password hashes are excluded from every result.
 const listUsers = wrap(async (req, res) => {
   const { search, role } = req.query;
   const query = {};
@@ -58,10 +62,15 @@ const createUser = wrap(async (req, res) => {
     role: role || 'reporter'
   });
 
+  // save() runs the User password-hashing hook. Inserting plaintext directly
+  // into MongoDB would bypass that hook; the response must use the safe object.
   await user.save();
   return res.status(201).json({ message: 'User created successfully', user: user.toSafeObject() });
 });
 
+// This endpoint updates fullName, role and/or password, not username. Saving the
+// document hashes only a changed password. loadCurrentUser reads the new role on
+// later dynamic requests, including a caller who changed their own role here.
 const updateUser = wrap(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid user ID.' });
   const user = await User.findById(req.params.id);
@@ -81,6 +90,8 @@ const updateUser = wrap(async (req, res) => {
   return res.status(200).json({ message: 'User updated successfully', user: user.toSafeObject() });
 });
 
+// Removing an account is not a cascade to its authored articles or comments.
+// Existing sessions lose authentication when loadCurrentUser next finds no User.
 const deleteUser = wrap(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid user ID.' });
   if (req.session.user && req.session.user.id === req.params.id) {

@@ -5,6 +5,8 @@ const MAX_COMMENTS = 3;
 
 // Spam protection: a guest may post at most 3 comments per rolling minute.
 // Signed-in users are skipped (they are identified by their account).
+// This reserves attempts before Comment.create; a later persistence failure
+// can consume a slot. It is a rolling window, not a clock-minute quota.
 exports.guestCommentLimiter = async (req, res, next) => {
     if (req.session?.user) return next();
     try {
@@ -30,10 +32,14 @@ exports.guestCommentLimiter = async (req, res, next) => {
                 $setOnInsert: { attempts: [], expiresAt }
             }, { upsert: true });
         } catch (error) {
+            // Two first attempts can race the initial upsert. A duplicate means
+            // the identity record now exists; the atomic budget check still runs.
             if (error.code !== 11000) throw error;
         }
         // Keep recent attempts, check the budget and append in one update so parallel
         // requests cannot exceed the limit.
+        // TTL cleanup is asynchronous. Filter by cutoff on every request rather
+        // than depending on MongoDB deleting the record exactly at expiration.
         const recent = { $filter: { input: '$attempts', as: 'time', cond: { $gt: ['$$time', cutoff] } } };
         // The predicate and append run as one database update for every process.
         const accepted = await GuestCommentLimit.findOneAndUpdate({

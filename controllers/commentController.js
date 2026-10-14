@@ -8,6 +8,8 @@ const publicComment = comment => ({
 });
 exports.publicComment = publicComment;
 
+// Runs before input validation and guest-budget reservation on comment creation.
+// List requests use this same published-only guard; moderation uses its editor guard.
 exports.validatePublicArticle = async (req, res, next) => {
     try {
         const articleId = req.params.articleId || req.body.articleId;
@@ -32,6 +34,8 @@ exports.validateCommentInput = (req, res, next) => {
     next();
 };
 
+// req.commentInput comes from the preceding validator, never directly from a
+// spread of the raw body. Keep stored IP/account metadata out of publicComment.
 exports.createComment = async (req, res, next) => {
     try {
         const comment = await Comment.create({ ...req.commentInput, article: req.body.articleId,
@@ -47,6 +51,9 @@ exports.getComments = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// API-only editor moderation: callers supply a Comment ID, not an Article ID.
+// This path intentionally allows name correction; creation still fixes a signed-in
+// commenter's name to their session account and runs a different validation chain.
 exports.updateComment = async (req, res, next) => {
     try {
         if (!validId(req.params.commentId)) return res.status(400).json({ message: 'Invalid comment ID' });

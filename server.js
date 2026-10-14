@@ -5,6 +5,7 @@ const PORT = process.env.PORT || 3000;
 
 async function startServer() {
   try {
+    // Startup waits for the main database before accepting HTTP requests.
     await connectDB();
     const server = app.listen(PORT, () => {
       console.log(`[Server] The Daily Web running on http://localhost:${PORT}`);

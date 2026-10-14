@@ -6,6 +6,8 @@ const { requireRole } = require('../../middlewares/rbac');
 // requireRole also turns guests away with 401, so no separate requireAuth is needed.
 router.use(requireRole('editor'));
 
+// The page exposes creation; list/get/update/delete are also available to
+// editor API clients. These endpoints do not imply matching UI controls.
 router.get('/', userController.listUsers);
 router.get('/:id', userController.getUserById);
 router.post('/', userController.createUser);

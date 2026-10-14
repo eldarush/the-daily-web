@@ -41,6 +41,8 @@ async function listAllArticles(req, res, next) {
       if (!Article.ARTICLE_STATUSES.includes(req.query.status)) {
         return res.status(400).json({ error: 'Invalid status filter' });
       }
+      // Main status stays published during revision review. A pending-only
+      // main-status query would hide submitted corrections from the editor.
       if (['pending', 'rejected', 'draft'].includes(req.query.status)) {
         filter.$or = [{ status: req.query.status }, { status: 'published', 'pendingUpdate.hasUpdate': true, 'pendingUpdate.status': req.query.status }];
       } else filter.status = req.query.status;
@@ -200,6 +202,8 @@ async function approveArticle(req, res, next) {
       article.publishedAt = new Date();
     }
 
+    // Review snapshots are temporary feedback, not a permanent version archive.
+    // First publishedAt stays unchanged when a later revision is promoted.
     article.editorNotes = '';
     article.editorChanges = undefined;
     await article.save();
@@ -260,6 +264,8 @@ async function deleteArticle(req, res, next) {
     }
 
     // MongoDB has no foreign keys or cascades, so we delete the related documents ourselves.
+    // The three deletes are sequential, not transactional: a later error does
+    // not restore related records already removed by an earlier operation.
     await Comment.deleteMany({ article: article._id });
     await ViewAnalytics.deleteMany({ article: article._id });
     await article.deleteOne();
