@@ -6,7 +6,7 @@
  *   - 520 articles across all 7 categories and all 4 states
  *   - published articles carrying update histories (analytics milestones)
  *   - 15 live articles with a staged revision, for the diff demo
- *   - 168 hours of hourly view buckets per published article, with a visible
+ *   - up to 168 hours of view history per published article, with a visible
  *     readership bump after each editor update
  *   - public comments
  *
@@ -53,7 +53,6 @@ const HEADLINE_SUBJECTS = [
   'urban farming', 'the championship', 'small business relief', 'the new campus', 'water conservation'
 ];
 
-/** Deterministic-ish pick helpers. */
 function pick(arr, i) {
   return arr[i % arr.length];
 }

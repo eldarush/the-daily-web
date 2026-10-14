@@ -97,7 +97,7 @@ describe('Article Comments & Guest Spam Protection', () => {
         }
 
 
-        // Fourth comment from the same guest/IP should be blocked
+        // The fourth comment from the same guest browser should be blocked.
         const blockedRes = await device
             .post('/api/comments')
             .send({

@@ -8,7 +8,7 @@ let storeInstance = null;
 function createSessionMiddleware() {
   // Secrets come from .env (never committed; see .gitignore and .env.example).
   const mongoUrl = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web';
-  // SESSION_SECRET signs the cookie, so a user cannot forge or edit their session id.
+  // Sign the session ID cookie to detect client-side tampering.
   const secret = process.env.SESSION_SECRET;
   // Refuse to start without a secret; production also requires a long one (32+ chars).
   if (typeof secret !== 'string' || !secret.trim() || (process.env.NODE_ENV === 'production' && secret.trim().length < 32)) {

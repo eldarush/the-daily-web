@@ -32,10 +32,8 @@ exports.guestCommentLimiter = async (req, res, next) => {
         } catch (error) {
             if (error.code !== 11000) throw error;
         }
-        // Step 2: keep only attempts from the last minute ($filter), count them ($size), and if
-        // there are fewer than 3, add this attempt ($concatArrays). This is an aggregation
-        // pipeline inside one update, so the check and the append happen atomically: two
-        // requests at the same moment cannot both slip through.
+        // Keep recent attempts, check the budget and append in one update so parallel
+        // requests cannot exceed the limit.
         const recent = { $filter: { input: '$attempts', as: 'time', cond: { $gt: ['$$time', cutoff] } } };
         // The predicate and append run as one database update for every process.
         const accepted = await GuestCommentLimit.findOneAndUpdate({

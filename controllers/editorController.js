@@ -60,7 +60,7 @@ async function listAllArticles(req, res, next) {
 /**
  * Returns the live content vs the staged pending update, for the diff viewer.
  * @param {import('express').Request} req - Params.id.
- * @param {import('express').Response} res - JSON { live, pending }.
+ * @param {import('express').Response} res - JSON { status, live, pending }.
  * @returns {Promise<void>}
  */
 async function getArticleDiff(req, res, next) {
