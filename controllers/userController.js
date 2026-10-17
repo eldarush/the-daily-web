@@ -17,6 +17,7 @@ const listUsers = wrap(async (req, res) => {
     query.role = role;
   }
 
+  // Escape regex characters so the search text is matched literally.
   if (search && search.trim()) {
     query.$or = [
       { username: { $regex: search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
@@ -24,6 +25,7 @@ const listUsers = wrap(async (req, res) => {
     ];
   }
 
+  // select('-password'): never send password hashes to the browser.
   const users = await User.find(query).select('-password').sort({ createdAt: -1 });
   return res.status(200).json({ users });
 });
