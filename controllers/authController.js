@@ -1,18 +1,23 @@
 const User = require('../models/User');
 
+// POST /api/auth/login
 async function login(req, res, next) {
   try {
     const { username, password } = req.body || {};
 
+    // Type checks also block NoSQL injection such as { "username": { "$ne": null } }.
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password.trim()) {
       return res.status(400).json({ error: 'Username and password are required.' });
     }
 
     const user = await User.findOne({ username: username.trim() });
+    // bcrypt.compare runs inside comparePassword. The same message for "no such user"
+    // and "wrong password" so an attacker cannot learn which usernames exist.
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
+    // Logging in = saving the user's id and role in the server-side session.
     req.session.user = {
       id: user._id.toString(),
       username: user.username,
@@ -29,6 +34,7 @@ async function login(req, res, next) {
   }
 }
 
+// POST /api/auth/logout: deletes the session from MongoDB and clears the cookie.
 function logout(req, res, next) {
   req.session.destroy((err) => {
     if (err) return next(err);

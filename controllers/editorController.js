@@ -163,6 +163,9 @@ async function approveArticle(req, res, next) {
       return res.status(400).json({ error: 'Title, summary, content and a valid category are required before publication' });
     }
 
+    // Case 1: an approved revision of a live article. Copy the staged fields over the live
+    // ones and log a milestone (the analytics chart draws a marker for it).
+    // Case 2: a first-time publication: pending → published.
     if (hasStagedUpdate) {
       if (article.status !== 'published' || article.pendingUpdate.status !== 'pending') {
         return res.status(400).json({ error: 'Only submitted revisions can be approved' });
@@ -244,6 +247,7 @@ async function deleteArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
+    // MongoDB has no foreign keys or cascades, so we delete the related documents ourselves.
     await Comment.deleteMany({ article: article._id });
     await ViewAnalytics.deleteMany({ article: article._id });
     await article.deleteOne();
