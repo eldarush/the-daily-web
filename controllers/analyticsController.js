@@ -28,6 +28,9 @@ async function recordView(articleId) {
 
   const hourBucket = toHourBucket(new Date());
 
+  // This is our "group by": one counter document per (article, hour). upsert creates the
+  // hour's document on its first view; $inc adds 1 atomically, so concurrent views are never
+  // lost. Trade-off: we keep only hourly totals, not the exact time or who viewed.
   try {
     await Promise.all([
       ViewAnalytics.findOneAndUpdate(
@@ -94,6 +97,8 @@ async function listPublishedArticles(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// Editor tool: set one hour's view count directly (PUT /api/analytics/:articleId/buckets).
+// The article's total viewsCount is adjusted by the difference so both numbers stay in sync.
 async function setViewBucket(req, res, next) {
   const { articleId } = req.params;
   const { time, views } = req.body;
@@ -118,6 +123,7 @@ async function setViewBucket(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+// Editor tool: delete an article's hourly buckets (DELETE /api/analytics/:articleId).
 async function resetArticleAnalytics(req, res, next) {
   const { articleId } = req.params;
   if (!mongoose.isValidObjectId(articleId)) {
