@@ -13,9 +13,12 @@ function describeWeather(code) {
   return 'Thunderstorm';
 }
 
+// The only external API: Open-Meteo (free, no API key, so there is no secret to protect).
+// The server calls it, not the browser, so we can cache one answer for all readers.
 async function fetchWeather(city = 'Tel Aviv') {
   const latitude = process.env.WEATHER_LATITUDE || '32.0853';
   const longitude = process.env.WEATHER_LONGITUDE || '34.7818';
+  // Give up after 10 seconds so a slow provider can't hang our request.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
@@ -47,6 +50,7 @@ async function fetchWeather(city = 'Tel Aviv') {
   }
 }
 
+// GET /api/weather: serve the cached answer while it is under 15 minutes old, otherwise refresh.
 async function getWeather(req, res) {
   const now = Date.now();
   if (weatherCache.data && now - weatherCache.lastFetched < CACHE_TTL_MS &&

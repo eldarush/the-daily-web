@@ -1,6 +1,7 @@
 const Comment = require('../models/Comment');
 const Article = require('../models/Article');
 const validId = id => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id);
+// The only comment fields sent to the browser: userIp and the user id stay on the server.
 const publicComment = comment => ({
     _id: comment._id, authorName: comment.authorName,
     content: comment.content, createdAt: comment.createdAt
@@ -18,6 +19,8 @@ exports.validatePublicArticle = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Signed-in users always comment under their account name; guests type a name.
+// Comments are stored as plain text and escaped when shown, so HTML in them can't run (XSS).
 exports.validateCommentInput = (req, res, next) => {
     const authorName = req.session?.user ? req.session.user.fullName : req.body.authorName;
     const content = req.body.content;
