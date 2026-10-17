@@ -42,6 +42,11 @@
   function render(oldText, newText) {
     const a = tokenize(oldText);
     const b = tokenize(newText);
+    // Large articles use a complete escaped comparison without the quadratic word table.
+    if (a.length * b.length > 250000) {
+      return { leftHtml: '<del class="diff-del">' + escapeHtml(oldText) + '</del>',
+        rightHtml: '<ins class="diff-add">' + escapeHtml(newText) + '</ins>' };
+    }
     const table = lcsTable(a, b);
 
     let left = '';

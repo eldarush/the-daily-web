@@ -29,6 +29,9 @@
   let total = 0;
   let pageSize = 20;
   let currentId = null;
+  let modalVersion = 0;
+  let tableVersion = 0;
+  let actionVersion = null;
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -42,20 +45,24 @@
   }
 
   async function loadTable() {
+    const version = ++tableVersion;
     const params = new URLSearchParams({ page: String(page) });
     if (statusFilter.value) params.set('status', statusFilter.value);
     try {
       const res = await fetch('/api/editor/articles?' + params.toString());
+      if (version !== tableVersion) return;
       if (!res.ok) {
         tbody.innerHTML = '<tr><td colspan="6" class="empty-hint">Failed to load.</td></tr>';
         return;
       }
       const body = await res.json();
+      if (version !== tableVersion) return;
       total = body.total;
       pageSize = body.pageSize;
       renderRows(body.articles || []);
       updatePager();
     } catch (err) {
+      if (version !== tableVersion) return;
       tbody.innerHTML = '<tr><td colspan="6" class="empty-hint">Failed to load.</td></tr>';
     }
   }
@@ -100,6 +107,7 @@
   }
 
   function setEditDisabled(disabled) {
+    btnEdit.disabled = false;
     Object.values(EDIT_FIELDS).forEach(function (elId) {
       document.getElementById(elId).disabled = disabled;
     });
@@ -116,10 +124,13 @@
   }
 
   function combined(fields) {
-    return [fields.title, fields.summary, fields.content].filter(Boolean).join('\n\n');
+    return ['Title: ' + fields.title, 'Summary: ' + fields.summary,
+      'Category: ' + fields.category, 'Image URL: ' + (fields.imageUrl || '(none)'),
+      'Content:\n' + fields.content].join('\n\n');
   }
 
   async function openModal(id) {
+    const version = ++modalVersion;
     currentId = id;
     modalStatus.textContent = '';
     rejectBox.hidden = true;
@@ -128,6 +139,7 @@
       const res = await fetch('/api/editor/articles/' + id + '/diff');
       if (!res.ok) return;
       const body = await res.json();
+      if (version !== modalVersion) return;
       fillEditForm(body.pending || body.live);
       const submitted = body.status === 'pending' || (body.status === 'published' && body.pending && body.pending.status === 'pending');
       document.getElementById('btn-approve').disabled = !submitted;
@@ -149,6 +161,7 @@
   }
 
   function closeModal() {
+    modalVersion++;
     modal.hidden = true;
     currentId = null;
   }
@@ -162,10 +175,17 @@
   }
 
   async function sendAction(url, options, successMsg) {
+    const version = modalVersion;
+    if (actionVersion === version) return false;
+    actionVersion = version;
+    const controls = Object.values(EDIT_FIELDS).map(id => document.getElementById(id)).concat(btnEdit);
+    const disabled = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
     modalStatus.textContent = 'Working…';
     try {
       const res = await fetch(url, options);
       const body = await res.json().catch(function () { return {}; });
+      if (version !== modalVersion) return false;
       if (!res.ok) {
         modalStatus.textContent = body.error || 'Action failed';
         return false;
@@ -173,12 +193,22 @@
       modalStatus.textContent = successMsg;
       return true;
     } catch (err) {
+      if (version !== modalVersion) return false;
       modalStatus.textContent = 'Network error';
       return false;
+    } finally {
+      if (version === modalVersion) controls.forEach((control, i) => { control.disabled = disabled[i]; });
+      if (actionVersion === version) actionVersion = null;
     }
   }
 
   async function handleApprove() {
+    if (!document.getElementById('edit-title').disabled) {
+      const saved = await sendAction('/api/editor/articles/' + currentId,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectEdits()) }, 'Saved');
+      if (!saved) return;
+      setEditDisabled(true);
+    }
     const ok = await sendAction(
       '/api/editor/articles/' + currentId + '/approve',
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
