@@ -9,12 +9,15 @@ function badRequest(message) {
   throw error;
 }
 
+// Builds the public feed query: validate the filters, build a MongoDB filter object,
+// then fetch one page of 20. Used by GET/POST /api/articles and the home page.
 async function loadFeed(query) {
   if (Array.isArray(query)) badRequest('Filters must be a JSON object.');
   const {
     page = '1', limit = '20', category = 'all', search = '',
     sort = 'date', viewedFilter = 'all', viewedIds = ''
   } = query;
+  // Every filter must be plain text: an object like { "$ne": "" } could change the query (NoSQL injection).
   if ([page, limit, category, search, sort, viewedFilter, viewedIds].some(value => typeof value !== 'string')) {
     badRequest('Query parameters must be single text values.');
   }
@@ -29,9 +32,11 @@ async function loadFeed(query) {
   if (!['all', 'viewed', 'unviewed'].includes(viewedFilter)) badRequest('Invalid reading filter.');
   if (search.length > 100) badRequest('Search must be at most 100 characters.');
 
+  // Readers only ever see published articles; drafts and pending ones never leave the server.
   const filter = { status: 'published' };
   if (category !== 'all') filter.category = category;
   if (search.trim()) {
+    // Case-insensitive search in title OR summary.
     // Search user text literally, even when it contains regex characters.
     const text = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     filter.$or = [
@@ -39,6 +44,7 @@ async function loadFeed(query) {
       { summary: { $regex: text, $options: 'i' } }
     ];
   }
+  // "Viewed / unviewed": the browser sends the article ids it has opened (kept in localStorage).
   if (viewedFilter !== 'all') {
     const ids = viewedIds ? viewedIds.split(',') : [];
     if (ids.some(id => !/^[a-f\d]{24}$/i.test(id))) badRequest('Invalid viewed article ID.');
@@ -49,6 +55,9 @@ async function loadFeed(query) {
   const order = sort === 'popularity'
     ? { viewsCount: -1, publishedAt: -1, _id: -1 }
     : { publishedAt: -1, _id: -1 };
+  // Two queries in parallel: one page of articles (skip/limit = pagination, populate = join
+  // the author's name from users) and the total count, which tells the page if there is more.
+  // The compound indexes in models/Article.js match these filters and sorts.
   const [articles, total] = await Promise.all([
     Article.find(filter).select(PUBLIC_FIELDS).sort(order)
       .skip((pageNumber - 1) * PAGE_SIZE).limit(PAGE_SIZE)

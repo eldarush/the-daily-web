@@ -32,6 +32,9 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password with bcrypt before saving (12 salt rounds)
+// bcrypt is a one-way hash, not encryption: the password can't be recovered, only compared.
+// Each hash gets its own random salt, stored inside the result: "$2b$12$<salt><hash>".
+// isModified: only hash when the password changed (e.g. not when the full name is edited).
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 12);

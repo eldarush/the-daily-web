@@ -153,6 +153,9 @@ async function autosaveArticle(req, res, next) {
     }
 
     await article.validate();
+    // Optimistic concurrency: the browser numbers its saves (saveVersion). The update only
+    // matches if the stored version is not newer, so a slow, older save arriving late can't
+    // overwrite newer text. No match → 409 Conflict, and the page asks the user to reload.
     const filter = {
       _id: article._id, status: article.status,
       $or: [{ saveVersion: { $lte: version } }, { saveVersion: { $exists: false } }]
