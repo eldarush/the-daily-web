@@ -34,6 +34,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Order matters: the session must load before loadCurrentUser reads it,
+// and both run before any route, so every route knows who is calling.
 app.use(createSessionMiddleware());
 app.use(loadCurrentUser);
 
