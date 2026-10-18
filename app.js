@@ -24,6 +24,8 @@ const app = express();
 app.locals.currentUser = null;
 app.locals.path = '';
 
+// Enable only behind one trusted reverse proxy.
+app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : false);
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

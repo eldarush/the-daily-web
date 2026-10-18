@@ -40,6 +40,19 @@ view timelines. The script reports inserted counts and fails on insertion errors
 Demo accounts: `editor`, `reporter1`, `reporter2`, `reporter3`, `reporter4`.
 Their demo password is `password123`; these accounts are for local demonstration.
 
+## User accounts
+
+An authenticated editor creates accounts with `POST /api/users`, supplying
+`username`, `password`, `fullName` and `role` (`reporter` or `editor`). Send the
+original password over HTTPS; the User model hashes it before saving. Do not
+hash it in the client or insert accounts directly into MongoDB, since direct
+inserts bypass the model's password hook.
+
+If an account was inserted manually with a plaintext password, an authenticated
+editor can reset it with `PUT /api/users/:id` and a JSON body containing a new
+`password`. The model hashes the replacement before saving. Usernames are
+case-sensitive.
+
 ## Features and workflow
 
 - The public feed loads 20 approved articles per batch. Search, category,
@@ -149,8 +162,11 @@ files, not public requests. Recheck the audit before deployment.
 `NODE_ENV=production` requires a secret of at least 32 characters and sets
 `Secure` session cookies. Use HTTPS and a private, access-controlled MongoDB
 connection, with TLS for remote connections. Express proxy trust remains off
-by default. If HTTPS terminates at a reverse proxy, configure trust only for
-that known proxy before deploying; do not blindly trust client forwarding headers.
+by default (`TRUST_PROXY=0`). If HTTPS terminates at one trusted reverse proxy,
+set `TRUST_PROXY=1` and restart the server. This lets Express recognize the
+forwarded HTTPS request and issue the Secure session cookie. Enable it only
+when every request to Node passes through that proxy. Local HTTP development
+uses `NODE_ENV=development` and leaves `TRUST_PROXY=0`.
 
 Local automated checks cannot establish the access controls of a separately
 hosted database or the team's HTTPS setup. Verify those on the actual hosting
