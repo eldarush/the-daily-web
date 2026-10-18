@@ -198,6 +198,26 @@ describe('Authentication, User Management & Weather Service', () => {
       expect(res.body.users[0].fullName).toContain('Updated');
     });
 
+    test.each([['reporter', '/workspace'], ['editor', '/editor']])('A new %s can log in and open %s', async (role, page) => {
+      const username = 'new_login_' + role;
+      const created = await editorAgent.post('/api/users').send({
+        username, password: 'password123', fullName: 'New Login User', role
+      });
+      expect(created.status).toBe(201);
+      expect(created.body.user.password).toBeUndefined();
+      const stored = await User.findById(created.body.user.id);
+      expect(stored.password).not.toBe('password123');
+      expect(await stored.comparePassword('password123')).toBe(true);
+
+      const newcomer = request.agent(app);
+      const login = await newcomer.post('/api/auth/login')
+        .send({ username, password: 'password123' });
+      expect(login.status).toBe(200);
+      expect((await newcomer.get('/api/auth/me')).status).toBe(200);
+      expect((await newcomer.get(page)).status).toBe(200);
+      await editorAgent.delete(`/api/users/${created.body.user.id}`);
+    });
+
     test('Editor can perform full CRUD on users (Create, Read, Update, Delete)', async () => {
       // 1. Create with validation failure
       const failCreate = await editorAgent.post('/api/users').send({ username: 'short' });
