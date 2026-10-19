@@ -44,6 +44,8 @@
 
   // Counters exist only for hours with views. Put a zero on each side of a gap so
   // the line drops to zero there, without a point for every missing hour.
+  // These points exist only in the chart, not MongoDB. A two-hour gap needs
+  // one zero; a longer gap needs a zero near either end, not one per empty hour.
   function withGapZeros(records) {
     const points = [];
     records.forEach(function (record) {
@@ -135,6 +137,8 @@
   function render(data) {
     const points = withGapZeros(data.timeline || []);
     emptyEl.textContent = 'No view data yet for this article.';
+    // Milestones alone do not fabricate a view timeline: the empty state wins
+    // until at least one recorded bucket exists for this article.
     if (points.length === 0) {
       emptyEl.hidden = false;
       canvas.hidden = true;
@@ -156,6 +160,8 @@
     let max = Math.max.apply(null, times);
     if (min === max) { min -= HOUR / 2; max += HOUR / 2; }
 
+    // Numeric milliseconds use a linear scale; formatTime only changes labels.
+    // No date-adapter library or re-bucketing in the viewer timezone is needed.
     chart = new Chart(canvas, {
       type: 'line',
       data: {
@@ -209,6 +215,8 @@
   }
 
   // Fills the three numbers above the chart: total views, number of updates, busiest hour.
+  // Total is the sum of returned buckets (plus harmless gap zeros), not a fresh
+  // Article.viewsCount read. Separate server writes can make those totals differ.
   function renderSummary(views, updateList) {
     const total = views.reduce(function (a, b) { return a + b; }, 0);
     document.getElementById('sum-total').textContent = total.toLocaleString();

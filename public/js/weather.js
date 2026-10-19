@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await response.json();
+      // Provider observation age expires the display even when fetchedAt is
+      // recent. The periodic timer checks the server; it does not force a new
+      // provider call while that process still has a valid cached observation.
       expiresAt = new Date(data.observedAt).getTime() + 15 * 60 * 1000;
       const remaining = expiresAt - Date.now();
       if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('Weather expired');

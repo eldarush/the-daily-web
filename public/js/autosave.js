@@ -32,6 +32,8 @@
   let listVersion = 0;
   let listLoading = false;
   let retryPage = 1;
+  // One latest unsent snapshot per article; replacing the Map value coalesces
+  // typing without mutating an object already held by an in-flight request.
   const pending = new Map();
   const versions = new Map();
   let saving = Promise.resolve(true);
@@ -165,6 +167,8 @@
       ? article.pendingUpdate
       : article;
 
+    // Do not revive local changes onto work already locked for review. Versions
+    // are preferred; timestamps only support older backups without a version.
     const local = readLocalBackup(id);
     const serverStamp = new Date(serverData.updatedAt || article.updatedAt || 0).getTime();
     if (editable(article) && local && (local.data.saveVersion > article.saveVersion || (local.data.saveVersion === undefined && local.stamp > serverStamp))) {
@@ -233,6 +237,8 @@
             if (article.status === 'published') article.pendingUpdate = Object.assign({}, article.pendingUpdate, data, { hasUpdate: true, updatedAt: body.updatedAt });
             else Object.assign(article, data, { updatedAt: body.updatedAt });
           }
+          // Typing during fetch replaces this value. Only remove the exact
+          // acknowledged object, or a successful old save would erase new work.
           if (pending.get(id) === data) {
             pending.delete(id);
             try { localStorage.removeItem(LOCAL_PREFIX + id); } catch (err) { /* ignore */ }
@@ -249,6 +255,8 @@
     return saving;
   }
 
+  // Back up every input immediately; debounce only the network write. The local
+  // copy is browser/origin-specific and is not proof of a successful server save.
   function handleInput() {
     capture();
     setBadge('saving', 'Changes waiting to save');
@@ -256,6 +264,8 @@
     debounceTimer = setTimeout(flush, DEBOUNCE_MS);
   }
 
+  // keepalive is a best-effort exit write. Retain local recovery data because
+  // tab shutdown or a failed network request can still prevent completion.
   function saveOnExit() {
     clearTimeout(debounceTimer);
     pending.forEach(function (data, id) {
@@ -289,6 +299,8 @@
 
   async function handleSubmit() {
     if (!currentId) return;
+    // Keep the intended article stable while asynchronous saves finish; a
+    // failed flush must not submit the last persisted but outdated candidate.
     const id = currentId;
     if (!(await flush())) return;
     if (currentId !== id) return;
