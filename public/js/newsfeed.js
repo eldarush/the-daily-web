@@ -51,6 +51,7 @@
     card.classList.toggle('is-read', isRead);
     card.querySelector('.read-badge').hidden = !isRead;
     const image = card.querySelector('.card-image');
+    image.addEventListener('load', () => { image.hidden = false; }, { once: true });
     image.addEventListener('error', () => { image.hidden = true; }, { once: true });
     if (image.complete && !image.naturalWidth) image.hidden = true;
   }
