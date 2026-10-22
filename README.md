@@ -61,9 +61,10 @@ case-sensitive.
 - Article pages contain the complete approved article in their initial HTML.
   Comments are escaped text and a new comment is appended immediately.
 - Guest comment attempts are limited to three per rolling minute per signed
-  browser session. MongoDB stores the limit atomically and expires old records.
+  browser identity. Its HttpOnly cookie survives sign-in and sign-out. MongoDB
+  stores the limit atomically and expires old records.
   Different browser sessions sharing an IP have separate limits. Registered
-  users are identified by their server session. Clearing cookies starts a new
+  users are identified by their server session. Clearing all cookies starts a new
   browser identity; the application does not fingerprint devices.
 - Reporters can manage only their own articles. Drafts and returned articles
   can be edited and submitted; submitted articles are read-only to reporters.
@@ -75,13 +76,34 @@ case-sensitive.
   serializes server saves. Switching articles and submitting flush pending work;
   page exit also sends a keepalive request. Save failures remain visible and
   prevent submission. A fresh browser loads the last server-confirmed version.
+  Sign-out waits for pending saves and stays in the workspace if saving fails.
   An offline device must reconnect for another computer to receive its edits.
 - Staff lists and the analytics selector have pagination. Canvas shows hourly
-  views and publication markers on one timeline.
+  views and publication markers on one timeline, including zero-view gaps and
+  visible single-hour points. Changing the selection clears the previous chart.
 - User, article, comment and view-statistics operations use server authorization.
   Signed-in users are checked against the current account and role on requests.
   Passwords use bcrypt with 12 rounds and independent salts, and hashes are
   excluded from user API responses. Mongo-backed sessions survive server restart.
+  Signing in replaces the guest session identifier.
+
+The editor's approval action saves displayed edits before publication and stops
+if saving fails. Revision comparisons include every editable field. Long article
+comparisons show complete escaped text instead of allocating an unbounded word
+comparison table.
+
+## Operational logs
+
+Sign-in/out, article workflow, user/comment/statistics mutations and their HTTP
+outcomes are appended as JSON lines to `logs/operations.jsonl`. Centralized
+unexpected request failures are persisted there too. Records contain timestamp,
+operation area, method, route template, HTTP status and actor ID. Request bodies,
+passwords, session/device cookies, query strings and article/comment text are
+excluded. The directory is ignored by Git. Set `LOG_DIRECTORY` to an existing
+deployment log location or let the app create the default directory. Give only
+the service account access, configure rotation/retention on the hosting system,
+and monitor stderr for a failed log destination. A logging failure does not make
+a successfully completed database operation appear to have failed.
 
 ## Weather
 
