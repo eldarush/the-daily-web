@@ -2,8 +2,18 @@ const mongoose = require('mongoose');
 const Article = require('../models/Article');
 const ViewAnalytics = require('../models/ViewAnalytics');
 
+/*
+ * The chart's data flow, in two halves:
+ *   WRITE: a reader opens an article → articleController calls recordView →
+ *          +1 on that article's counter for the current hour (ViewAnalytics).
+ *   READ:  the editor picks an article on /editor/analytics → impact-chart.js
+ *          calls GET /api/analytics/:articleId → getArticleAnalytics returns the
+ *          hourly counters (timeline) and the approved updates (milestones).
+ */
+
 /**
  * Truncates a date to the start of its UTC hour (HH:00:00.000).
+ * e.g. 2026-10-17T09:37:12Z → 2026-10-17T09:00:00Z, the key of that hour's counter.
  * @param {Date} date - Any moment in time.
  * @returns {Date} The start-of-hour bucket key.
  */
@@ -60,13 +70,18 @@ async function getArticleAnalytics(req, res, next) {
   }
 
   try {
+    // 1. The article itself, only for its title and the list of approved updates.
     const article = await Article.findById(articleId).select('publishedUpdates publishedAt title').lean();
     if (!article) {
       return res.status(404).json({ error: 'Article not found' });
     }
 
+    // 2. Only THIS article's hourly counters, oldest first so the line is drawn left to right.
+    //    No $group needed: each document is already one hour's total.
     const records = await ViewAnalytics.find({ article: articleId }).sort({ timestampBucket: 1 }).lean();
 
+    // 3. Reshape for the browser: timeline = points of the line,
+    //    milestones = dashed markers (pushed by editorController.approveArticle).
     return res.json({
       title: article.title,
       publishedAt: article.publishedAt,
@@ -81,6 +96,8 @@ async function getArticleAnalytics(req, res, next) {
   }
 }
 
+// GET /api/analytics/articles?page=N: one page of 20 published articles (id + title only)
+// for the chart page's picker, newest first. hasMore tells the page whether "Next" works.
 async function listPublishedArticles(req, res, next) {
   const page = req.query.page === undefined ? 1 : Number(req.query.page);
   if (!Number.isSafeInteger(page) || page < 1) {
