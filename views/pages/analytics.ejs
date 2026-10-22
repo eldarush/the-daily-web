@@ -10,6 +10,12 @@
   <a href="/editor" class="btn btn-outline">← Back to Hub</a>
 </div>
 
+<%# Impact Analytics page. The server only sends this empty layout (app.js, GET /editor/analytics).
+    public/js/impact-chart.js (loaded at the bottom) finds the elements below by their ids,
+    fills the article picker, fetches the chosen article's data and draws it on the canvas. %>
+
+<%# Article picker: filled from GET /api/analytics/articles, 20 published articles per page.
+    Each <option> value is an article _id; choosing one loads GET /api/analytics/:articleId. %>
 <div class="analytics-controls">
   <label for="article-select">Article</label>
   <select id="article-select"><option value="">Loading articles…</option></select>
@@ -19,6 +25,7 @@
 </div>
 
 <div class="chart-card">
+  <%# Three numbers above the chart, filled by renderSummary(): total views, approved updates, busiest hour. %>
   <div class="chart-summary" id="chart-summary" hidden>
     <div class="summary-tile">
       <span class="summary-value" id="sum-total">0</span>
@@ -34,10 +41,15 @@
     </div>
   </div>
 
+  <%# The drawing surface. width/height are its internal pixel size (900 × 380), which
+      impact-chart.js uses for every x/y calculation; CSS may display it at another size.
+      It starts empty: render() clears and redraws it each time an article is chosen.
+      The tooltip is a normal HTML box placed over the canvas on mouse move. %>
   <div class="canvas-wrap">
     <canvas id="impactChart" width="900" height="380"></canvas>
     <div id="chart-tooltip" class="chart-tooltip" hidden></div>
   </div>
+  <%# Shown instead of the canvas when the article has no view counters yet. %>
   <p id="chart-empty" class="empty-hint" hidden>No view data yet for this article.</p>
   <div class="chart-legend">
     <span class="legend-item"><span class="legend-swatch line"></span> Hourly views</span>
@@ -45,6 +57,7 @@
   </div>
 </div>
 
+<%# Loaded last, so every element above already exists when the script runs. %>
 <script src="/js/impact-chart.js"></script>
 
 <%- include('../partials/footer') %>
