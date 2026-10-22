@@ -4,11 +4,15 @@ const { getArticleAnalytics, listPublishedArticles, setViewBucket, resetArticleA
 
 const router = express.Router();
 
+// Mounted at /api/analytics in app.js.
 // Impact Analytics is an editor-only view.
+// One line protects every route below: guests get 401, reporters 403.
 router.use(requireRole('editor'));
 
-router.get('/articles', listPublishedArticles);
-router.get('/:articleId', getArticleAnalytics);
+// Used by the chart page (public/js/impact-chart.js):
+router.get('/articles', listPublishedArticles); // fills the article picker
+router.get('/:articleId', getArticleAnalytics); // the data for one article's chart
+// Editor tools to correct or reset the stored counters (not used by the chart page):
 router.put('/:articleId/buckets', setViewBucket);
 router.delete('/:articleId', resetArticleAnalytics);
 

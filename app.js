@@ -100,6 +100,9 @@ app.get('/editor', requireRole('editor'), (req, res) => {
   });
 });
 
+// Impact Analytics page, step 1 of the chart flow: renders views/pages/analytics.ejs
+// (an empty canvas + the article picker). The data and the drawing come later from
+// public/js/impact-chart.js through /api/analytics (routes/api/analyticsRoutes.js).
 app.get('/editor/analytics', requireRole('editor'), (req, res) => {
   if (!req.session || !req.session.user) {
     return res.redirect('/login');

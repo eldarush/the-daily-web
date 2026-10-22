@@ -1,8 +1,23 @@
 /* Impact Analytics: pure-canvas time-series of hourly views with vertical
-   markers at each editor-update publication point. No charting library. */
+   markers at each editor-update publication point. No charting library.
+
+   How the chart gets on the screen (in order):
+   1. views/pages/analytics.ejs has an empty <canvas id="impactChart"> and an
+      <select id="article-select">, then loads this script.
+   2. On DOMContentLoaded, init() wires the events and loadArticleOptions()
+      fills the dropdown from GET /api/analytics/articles (editors only).
+   3. When the editor picks an article, handleSelect() fetches
+      GET /api/analytics/:articleId → { timeline, milestones }.
+      timeline   = that article's hourly view counters (ViewAnalytics)
+      milestones = times of approved updates (Article.publishedUpdates)
+   4. render() clears the canvas, converts every time and view count into
+      pixel coordinates, then draws: axes → area + line → update markers.
+   5. Moving the mouse shows a tooltip for the nearest hour (handleMove).
+   The canvas never "knows" the article: it is wiped and redrawn on every pick. */
 (function () {
   'use strict';
 
+  // Empty space around the plot, in pixels, for the axis labels.
   const PAD = { top: 30, right: 24, bottom: 46, left: 52 };
   const COLOR_LINE = '#2b6cb0';
   const COLOR_FILL = 'rgba(43, 108, 176, 0.12)';
@@ -10,7 +25,9 @@
   const COLOR_TEXT = '#718096';
   const COLOR_MILESTONE = '#dd6b20';
 
+  // The link between HTML and JS is the element id: id="impactChart" in analytics.ejs.
   const canvas = document.getElementById('impactChart');
+  // The 2D context is the "pen": every line, fill and label is drawn through ctx.
   const ctx = canvas.getContext('2d');
   const selectEl = document.getElementById('article-select');
   const previousEl = document.getElementById('articles-previous');
@@ -21,6 +38,8 @@
   const emptyEl = document.getElementById('chart-empty');
   const summaryEl = document.getElementById('chart-summary');
 
+  // Pixel positions of what is currently drawn, kept so the tooltip can find
+  // the nearest hour without redrawing anything.
   let points = []; // { x, y, time, views }
   let milestones = []; // { x, time, changelogNote }
 
@@ -28,6 +47,7 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
+  // Size of the drawing area inside the padding (canvas is 900 × 380).
   function plotWidth() {
     return canvas.width - PAD.left - PAD.right;
   }
@@ -36,6 +56,8 @@
     return canvas.height - PAD.top - PAD.bottom;
   }
 
+  // Draws the horizontal gridlines with view counts on the left, and three
+  // date labels under the plot (first hour, middle, last hour).
   function drawAxes(maxViews, tMin, tMax) {
     ctx.strokeStyle = COLOR_AXIS;
     ctx.fillStyle = COLOR_TEXT;
@@ -43,11 +65,13 @@
     ctx.font = '11px -apple-system, Segoe UI, sans-serif';
 
     // Y axis + gridlines (5 steps)
+    // e.g. maxViews 33 → labels 0, 7, 13, 20, 26, 33 from bottom to top.
     const steps = 5;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let s = 0; s <= steps; s++) {
       const val = Math.round((maxViews / steps) * s);
+      // s = 0 is the bottom line; each step moves up by a fifth of the height.
       const y = PAD.top + plotHeight() - (plotHeight() / steps) * s;
       ctx.beginPath();
       ctx.moveTo(PAD.left, y);
@@ -64,16 +88,19 @@
     labels.forEach(function (t, idx) {
       const x = PAD.left + (labels.length === 1 ? plotWidth() / 2 : (plotWidth() / 2) * idx);
       const d = new Date(t);
+      // Shown in the viewer's local time zone (buckets are stored in UTC).
       const text = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
         d.toLocaleTimeString([], { hour: '2-digit' });
       ctx.fillText(text, x, PAD.top + plotHeight() + 8);
     });
   }
 
+  // Draws the views as a line, with a light fill underneath it.
   function drawSeries() {
     if (points.length === 0) return;
 
     // Filled area under the line
+    // Path: bottom-left → along every point → bottom-right → close back to the start.
     ctx.beginPath();
     ctx.moveTo(points[0].x, PAD.top + plotHeight());
     points.forEach(function (p) { ctx.lineTo(p.x, p.y); });
@@ -83,6 +110,8 @@
     ctx.fill();
 
     // Line
+    // Connects the hours that have data; an hour with no views has no point,
+    // so the line goes straight from its neighbour to the next one.
     ctx.beginPath();
     points.forEach(function (p, i) {
       if (i === 0) ctx.moveTo(p.x, p.y);
@@ -93,9 +122,12 @@
     ctx.stroke();
   }
 
+  // Draws a dashed orange vertical line (+ triangle on top) at the moment
+  // each update was approved, so a jump in views can be tied to an update.
   function drawMilestones() {
+    // save/restore: the dash pattern only applies inside this function.
     ctx.save();
-    ctx.setLineDash([5, 4]);
+    ctx.setLineDash([5, 4]); // 5px dash, 4px gap
     ctx.strokeStyle = COLOR_MILESTONE;
     ctx.fillStyle = COLOR_MILESTONE;
     ctx.lineWidth = 1.5;
@@ -115,11 +147,14 @@
     ctx.restore();
   }
 
+  // Main drawing step, called with the JSON from GET /api/analytics/:articleId.
   function render(data) {
+    // Start from a blank canvas: forget the previous article completely.
     points = [];
     milestones = [];
     clear();
 
+    // No view counters yet (e.g. a brand-new article): show a message instead of an empty chart.
     const timeline = data.timeline || [];
     if (timeline.length === 0) {
       emptyEl.hidden = false;
@@ -131,27 +166,36 @@
     emptyEl.textContent = 'No view data yet for this article.';
     canvas.hidden = false;
 
+    // Find the ranges the chart must cover. Milestone times are included so an
+    // update marker is never outside the drawn time range.
     const times = timeline.map(function (r) { return new Date(r.time).getTime(); })
       .concat((data.milestones || []).map(function (m) { return new Date(m.time).getTime(); }));
     const views = timeline.map(function (r) { return r.views; });
     const tMin = Math.min.apply(null, times);
     const tMax = Math.max.apply(null, times);
-    const maxViews = Math.max(1, Math.max.apply(null, views));
-    const span = tMax - tMin || 1;
+    const maxViews = Math.max(1, Math.max.apply(null, views)); // at least 1: never divide by 0
+    const span = tMax - tMin || 1; // one single hour → avoid dividing by 0
 
+    // Data → pixels.
+    // x: the earliest time maps to the left edge of the plot, the latest to the right edge.
+    // y: 0 views maps to the bottom, maxViews to the top. It is "plotHeight − …"
+    //    because canvas y grows DOWNWARD (y = 0 is the top of the canvas).
     function xFor(t) { return PAD.left + (plotWidth() * (t - tMin)) / span; }
     function yFor(v) { return PAD.top + plotHeight() - (plotHeight() * v) / maxViews; }
 
+    // One point per hourly bucket.
     points = timeline.map(function (r) {
       const t = new Date(r.time).getTime();
       return { x: xFor(t), y: yFor(r.views), time: t, views: r.views };
     });
+    // One marker per approved update, kept only if it falls inside the plot.
     milestones = (data.milestones || [])
       .map(function (m) {
         return { x: xFor(new Date(m.time).getTime()), time: new Date(m.time).getTime(), changelogNote: m.changelogNote };
       })
       .filter(function (m) { return m.x >= PAD.left && m.x <= PAD.left + plotWidth(); });
 
+    // Draw in layers: later drawings paint on top of earlier ones.
     drawAxes(maxViews, tMin, tMax);
     drawSeries();
     drawMilestones();
@@ -159,6 +203,7 @@
     renderSummary(views, data.milestones || []);
   }
 
+  // Fills the three numbers above the chart: total views, number of updates, busiest hour.
   function renderSummary(views, updateList) {
     const total = views.reduce(function (a, b) { return a + b; }, 0);
     document.getElementById('sum-total').textContent = total.toLocaleString();
@@ -167,6 +212,8 @@
     summaryEl.hidden = false;
   }
 
+  // The canvas is 900px wide internally but CSS can display it smaller or larger;
+  // this converts the mouse position on screen into the canvas's own pixel units.
   function toCanvasCoords(evt) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -175,6 +222,7 @@
     };
   }
 
+  // The data point whose x is closest to the mouse (only x matters: we pick the hour).
   function nearestPoint(cx) {
     let best = null;
     let bestDist = Infinity;
@@ -188,6 +236,7 @@
     return best;
   }
 
+  // An update marker counts as "hovered" only if the mouse is within 8 pixels of it.
   function nearestMilestone(cx) {
     let best = null;
     let bestDist = 8;
@@ -201,6 +250,8 @@
     return best;
   }
 
+  // Tooltip: on every mouse move, show the nearest hour's views and time,
+  // plus the update's changelog note when the mouse is on a marker.
   function handleMove(evt) {
     if (points.length === 0) return;
     const c = toCanvasCoords(evt);
@@ -213,11 +264,13 @@
     });
     let html = '<strong>' + point.views + ' views</strong><br>' + when;
     if (milestone) {
+      // The note is typed by an editor, so it is escaped before going into innerHTML (no XSS).
       html += '<div class="tooltip-milestone">✎ ' + escapeHtml(milestone.changelogNote || 'Editor update') + '</div>';
     }
     tooltip.innerHTML = html;
     tooltip.hidden = false;
 
+    // Convert the point back from canvas pixels to screen pixels to place the tooltip on it.
     const rect = canvas.getBoundingClientRect();
     const screenX = rect.left + (point.x * rect.width) / canvas.width;
     const screenY = rect.top + (point.y * rect.height) / canvas.height;
@@ -225,6 +278,7 @@
     tooltip.style.top = (screenY - rect.top) + 'px';
   }
 
+  // textContent stores the text as plain text; innerHTML then returns it with < > & escaped.
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
@@ -235,6 +289,8 @@
     tooltip.hidden = true;
   }
 
+  // Fills the dropdown with published articles, 20 per page.
+  // Server: routes/api/analyticsRoutes.js → analyticsController.listPublishedArticles.
   async function loadArticleOptions() {
     try {
       const res = await fetch('/api/analytics/articles?page=' + articlePage);
@@ -254,8 +310,8 @@
       selectEl.innerHTML = '<option value="">Select an article…</option>';
       list.forEach(function (a) {
         const opt = document.createElement('option');
-        opt.value = a._id;
-        opt.textContent = a.title;
+        opt.value = a._id; // the article id is what handleSelect sends to the server
+        opt.textContent = a.title; // textContent, not innerHTML: titles can't inject HTML
         selectEl.appendChild(opt);
       });
     } catch (err) {
@@ -263,6 +319,10 @@
     }
   }
 
+  // Runs when the editor picks an article: this is what makes it the RIGHT chart.
+  // The chosen article's _id goes into the URL, and the server returns only that
+  // article's data (analyticsController.getArticleAnalytics:
+  // ViewAnalytics.find({ article: articleId }) + the article's publishedUpdates).
   async function handleSelect() {
     const id = selectEl.value;
     if (!id) {
@@ -285,6 +345,7 @@
     }
   }
 
+  // Wires every event once, then loads the first page of articles.
   function init() {
     selectEl.addEventListener('change', handleSelect);
     previousEl.addEventListener('click', function () { articlePage--; loadArticleOptions(); });
@@ -294,5 +355,6 @@
     loadArticleOptions();
   }
 
+  // Wait until the HTML is parsed, so all the elements above exist.
   document.addEventListener('DOMContentLoaded', init);
 })();
