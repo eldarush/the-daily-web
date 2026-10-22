@@ -7,31 +7,41 @@ or build step.
 
 ## Install and run
 
-Requirements: Node.js 22 or newer and a running MongoDB 6 or newer.
+Requirements: Git, Node.js 22 or newer, and a running MongoDB 6 or newer.
 
-```bash
+From PowerShell:
+
+```powershell
+git clone https://github.com/eldarush/the-daily-web.git
+Set-Location the-daily-web
 npm ci
-cp .env.example .env
+Copy-Item .env.example .env
 ```
 
-Edit `.env`: set `MONGODB_URI` to your own database and replace `SESSION_SECRET`
+On Linux or macOS, use `cd the-daily-web` and `cp .env.example .env` instead.
+
+Edit `.env`: set `MONGODB_URI` to a new local demonstration database and replace `SESSION_SECRET`
 with a private random value of at least 32 characters. Keep that value stable
 between restarts. Environment files are ignored by Git.
 
-```bash
+For the first run, populate the database before starting the app so the demo
+accounts exist. The seed command deletes all articles, comments and view
+statistics in the selected database and recreates the five demo accounts.
+Use it only against a dedicated local database.
+
+```powershell
+npm run seed
 npm start
 ```
 
-Open http://localhost:3000. `npm run dev` runs the existing development watcher.
+Open http://localhost:3000 (or the port set in `.env`) and sign in with a demo
+account below. `npm run dev` starts the development watcher.
 
 ## Demo data
 
-Use a dedicated demonstration database: seeding resets articles, comments and
-view statistics, and recreates the five demo accounts.
-
-```bash
-npm run seed
-```
+Run `npm run seed` again only when you want to reset the demonstration data.
+It deletes all articles, comments and view statistics, and recreates the five
+demo accounts. Other user accounts, sessions and guest-limit records are retained.
 
 The dataset contains 520 articles, four reporters, one editor, 120 comments,
 all publication states, pending revisions, multiple published updates and hourly
@@ -92,6 +102,34 @@ if saving fails. Revision comparisons include every editable field. Long article
 comparisons show complete escaped text instead of allocating an unbounded word
 comparison table.
 
+## Newsfeed implementation
+
+`controllers/feedController.js` handles the home page and feed API through
+`routes/webRoutes.js` and `routes/api/feedRoutes.js`. It filters published
+articles before applying sorting and pagination, returns at most 20 per page,
+and selects only public card fields and the author's name. Drafts, staged
+revisions and editor notes are excluded. `hasMore` tells the browser whether
+another page is available. The article ID breaks sorting ties; new publications
+or changing view counts can still move results between pages.
+
+`views/pages/home.ejs` renders the first batch. The shared
+`views/partials/feed-card.ejs` also supplies the template used by
+`public/js/newsfeed.js` for Ajax results, with layout in `public/css/newsfeed.css`.
+Article text uses escaped EJS output or `textContent`. Scrolling uses
+`IntersectionObserver`; the Load more button also requests the next batch.
+
+Search waits 300 milliseconds after typing and matches literal text in titles
+or summaries, including regex punctuation. Article visits are recorded in
+`localStorage`; this reading history is local to the browser and is not an
+authorization mechanism. Reading still works if storage is blocked, but history
+cannot be retained. Read/unread filters send IDs in JSON to the read-only
+`POST /api/articles/search` endpoint to avoid oversized query URLs; other feed
+requests use `GET /api/articles`.
+
+Request numbers prevent older filter responses from replacing newer results.
+The page number advances only after a successful response, so Retry requests
+the failed page without skipping a batch.
+
 ## Operational logs
 
 Sign-in/out, article workflow, user/comment/statistics mutations and their HTTP
@@ -125,10 +163,10 @@ server process, while authentication and guest limits are Mongo-backed.
 | Path | Responsibility |
 | --- | --- |
 | `app.js`, `server.js` | Express setup, routes and server lifecycle |
-| `config/` | MongoDB connection and persisted session configuration |
+| `config/` | MongoDB connection, persisted sessions and file logging |
 | `models/` | Users, articles, comments, hourly views and guest limit records |
 | `controllers/` | Validation, feed queries, workflow, comments, weather and statistics |
-| `middlewares/` | Authentication, roles, guest limiter and shared error handling |
+| `middlewares/` | Authentication, roles, guest limiter, operation logging and shared error handling |
 | `routes/` | Web pages and REST endpoints |
 | `views/` | EJS pages and shared partials |
 | `public/` | CSS, browser JavaScript and the original default article image |
@@ -156,22 +194,46 @@ Editor approval and return: `POST /api/editor/articles/:id/approve` and
 
 ## Checks
 
-```bash
+```powershell
 npm test
-npx playwright install chromium
-npm run test:e2e
 npm audit --omit=dev
 ```
 
 Jest creates isolated temporary MongoDB databases and enforces the existing
-100% coverage threshold for controllers, models, middleware and routes.
+100% coverage threshold for controllers, models, middleware and routes. The first
+run may download a MongoDB test binary.
 Coverage does not describe browser scripts or prove every requirement.
 
-Browser tests require a running **empty dedicated test database**. For example,
-set `MONGODB_URI=mongodb://127.0.0.1:27017/the_daily_web_test` and a test
-`SESSION_SECRET` before running them. Playwright starts the application itself.
-On PowerShell, use `$env:MONGODB_URI="mongodb://127.0.0.1:27017/the_daily_web_test"`.
-Never run destructive fixtures or seed commands against shared production data.
+Browser tests require a running MongoDB service and an **empty dedicated test
+database**. Stop any app listening on port 3000 first. Playwright uses that port
+even if `.env` specifies another one. `CI=1` disables reusing an existing server,
+so an occupied port fails the run instead of testing the wrong app/database.
+
+In a separate PowerShell terminal:
+
+```powershell
+$env:PORT = '3000'
+$env:NODE_ENV = 'test'
+$env:MONGODB_URI = 'mongodb://127.0.0.1:27017/the_daily_web_test'
+$env:SESSION_SECRET = 'local-browser-tests-only-secret-0123456789'
+$env:CI = '1'
+npx playwright install chromium
+npm run test:e2e
+```
+
+On Linux CI, install the browser's system dependencies with
+`npx playwright install --with-deps chromium`. Close the test terminal afterward
+so its environment settings do not affect normal development. Never run test
+fixtures or seed commands against shared or production data.
+
+`tests/e2e/newsfeed.spec.js` covers pagination, combined filters, stale responses,
+retry, escaped titles and reading storage. `submission-integration.spec.js`
+checks real article navigation, rendering without JavaScript and weather expiry.
+`workflow-diff-analytics.spec.js` covers published revision submission and review;
+`tests/unit/support-fixes.test.js` checks shared weather refreshes and failures.
+For a manual check, combine filters, scroll through the final short batch, open
+an article and return with Read only selected, then check a narrow viewport,
+an empty search result and a failed request followed by Retry.
 
 The production dependency audit reports zero advisories for the installed
 lockfile at verification time. The full audit still reports development-tool
