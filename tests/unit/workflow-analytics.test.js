@@ -337,8 +337,8 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
       spy.mockRestore();
     });
 
-    test('editor edit updates a draft in place and rejects bad category', async () => {
-      const a = await makeArticle({ status: 'draft' });
+    test('editor edit updates a submitted article in place and rejects bad category', async () => {
+      const a = await makeArticle({ status: 'pending' });
       const res = await editorAgent.put(`/api/editor/articles/${a._id}`).send({ title: 'Editor Edited', content: 'edited' });
       expect(res.status).toBe(200);
       const fresh = await Article.findById(a._id);
@@ -348,29 +348,40 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
       expect(bad.status).toBe(400);
     });
 
-    test('editor edit on a published article stages a pending update', async () => {
-      const a = await makeArticle({ status: 'published', title: 'Live', publishedAt: new Date() });
+    test('editor edit on a submitted revision changes the staged copy, not the live one', async () => {
+      const a = await makeArticle({
+        status: 'published', title: 'Live', publishedAt: new Date(),
+        pendingUpdate: { hasUpdate: true, status: 'pending', title: 'Revised', summary: 's', content: 'c', category: 'News', imageUrl: '/r.jpg' }
+      });
       const res = await editorAgent
         .put(`/api/editor/articles/${a._id}`)
-        .send({ title: 'Editor Staged', summary: 'ed s', content: 'ed c', category: 'Economy', imageUrl: '/ed.jpg' });
+        .send({ title: 'Editor Staged', category: 'Economy' });
       expect(res.status).toBe(200);
       const fresh = await Article.findById(a._id);
       expect(fresh.title).toBe('Live');
       expect(fresh.pendingUpdate.title).toBe('Editor Staged');
-      expect(fresh.pendingUpdate.category).toBe('Economy'); // provided-value branch
-      expect(fresh.pendingUpdate.imageUrl).toBe('/ed.jpg'); // provided-value branch
+      expect(fresh.pendingUpdate.category).toBe('Economy');
+      expect(fresh.pendingUpdate.content).toBe('c'); // untouched fields stay
+      expect(fresh.pendingUpdate.status).toBe('pending');
     });
 
-    test('editor edit on a published article with an empty body stages the live values', async () => {
-      const a = await makeArticle({ status: 'published', title: 'Editor Keep', publishedAt: new Date() });
-      const res = await editorAgent.put(`/api/editor/articles/${a._id}`).send({});
-      expect(res.status).toBe(200);
-      const fresh = await Article.findById(a._id);
-      expect(fresh.pendingUpdate.hasUpdate).toBe(true);
-      expect(fresh.pendingUpdate.title).toBe('Editor Keep'); // fallback branch
-      expect(fresh.pendingUpdate.content).toBe('Seed content'); // fallback branch
-      expect(fresh.pendingUpdate.category).toBe('Technology'); // fallback branch
-      expect(fresh.pendingUpdate.imageUrl).toBe('/images/default-article.jpg'); // fallback branch
+    test('editor edit is refused while the reporter still has the article', async () => {
+      const revision = status => ({ hasUpdate: true, status, title: 'R', summary: 's', content: 'c', category: 'News' });
+      const cases = [
+        { status: 'draft' },
+        { status: 'rejected' },
+        { status: 'published', publishedAt: new Date() },
+        { status: 'published', publishedAt: new Date(), pendingUpdate: revision('draft') },
+        { status: 'published', publishedAt: new Date(), pendingUpdate: revision('rejected') }
+      ];
+      for (const fields of cases) {
+        const a = await makeArticle({ title: 'Untouched', ...fields });
+        const res = await editorAgent.put(`/api/editor/articles/${a._id}`).send({ title: 'Editor tried' });
+        expect(res.status).toBe(409);
+        const fresh = await Article.findById(a._id);
+        expect(fresh.title).toBe('Untouched');
+        expect(fresh.pendingUpdate.title).not.toBe('Editor tried');
+      }
     });
 
     test('editor edit guards + error forwarding', async () => {

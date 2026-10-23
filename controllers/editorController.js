@@ -87,8 +87,20 @@ async function getArticleDiff(req, res, next) {
 }
 
 /**
- * Editor edits the article body directly. On a published article the edit is
- * staged as a pending update (public keeps the live version); otherwise the
+ * True when the reporter has submitted the article (or a revision of a live one)
+ * and it waits for review. Only then is the reporter's copy locked, so only then
+ * can the editor change it without the reporter's autosave writing over it.
+ * @param {any} article - Article document.
+ * @returns {boolean}
+ */
+function isSubmitted(article) {
+  return article.status === 'pending' ||
+    (article.status === 'published' && article.pendingUpdate.hasUpdate && article.pendingUpdate.status === 'pending');
+}
+
+/**
+ * Editor edits a submitted article directly. On a published article the edit
+ * changes the staged revision (public keeps the live version); otherwise the
  * primary fields are updated in place.
  * @param {import('express').Request} req - Params.id, body of editable fields.
  * @param {import('express').Response} res - JSON { success }.
@@ -113,20 +125,12 @@ async function editArticle(req, res, next) {
     if (fields.category !== undefined && !Article.ARTICLE_CATEGORIES.includes(fields.category)) {
       return res.status(400).json({ error: 'Invalid category' });
     }
+    if (!isSubmitted(article)) {
+      return res.status(409).json({ error: 'Only submitted articles can be edited. The reporter is still working on this one.' });
+    }
 
     if (article.status === 'published') {
-      const previous = article.pendingUpdate.hasUpdate ? article.pendingUpdate : article;
-      article.pendingUpdate = {
-        status: article.pendingUpdate.status,
-        editorNotes: article.pendingUpdate.editorNotes || '',
-        hasUpdate: true,
-        title: fields.title ?? previous.title,
-        summary: fields.summary ?? previous.summary,
-        content: fields.content ?? previous.content,
-        category: fields.category ?? previous.category,
-        imageUrl: fields.imageUrl ?? previous.imageUrl,
-        updatedAt: new Date()
-      };
+      Object.assign(article.pendingUpdate, fields, { updatedAt: new Date() });
     } else {
       Object.assign(article, fields);
     }
