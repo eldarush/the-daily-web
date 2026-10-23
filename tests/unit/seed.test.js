@@ -39,6 +39,14 @@ test('every published demo article has ordered, attributed updates without publi
   expect(new Set(published.map(article => article.author.toString())).size).toBe(4);
   expect(new Set(published.map(article => article.category)).size).toBe(7);
   expect(editor.role).toBe('editor');
+  expect(new Set(published.map(article => article.publishedUpdates.length))).toEqual(new Set([1, 2, 3]));
+  expect(await User.countDocuments({ role: 'reporter' })).toBe(4);
+  expect(await User.countDocuments({ role: 'editor' })).toBe(1);
+  expect(await require('../../models/Comment').countDocuments()).toBe(120);
+  for (const [status, count] of [['draft', 52], ['pending', 52], ['rejected', 26]]) {
+    expect(await Article.countDocuments({ status })).toBe(count);
+    expect(await Article.distinct('category', { status })).toHaveLength(7);
+  }
 
   for (const article of published) {
     expect(article.publishedUpdates.length).toBeGreaterThanOrEqual(1);

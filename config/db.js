@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { writeLog } = require('./logger');
 
 /** Reuse the open Mongoose connection; server.js waits for this before listening. */
 async function connectDB() {
@@ -14,20 +15,20 @@ async function connectDB() {
     });
 
     mongoose.connection.on('connected', () => {
-      console.log(`[MongoDB] Connected successfully to ${mongoose.connection.name}`);
+      writeLog('database.connected', {});
     });
 
     mongoose.connection.on('error', (err) => {
-      console.error('[MongoDB] Connection error:', err.message);
+      writeLog('database.error', { level: 'error', errorType: err.name || 'Error' });
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('[MongoDB] Disconnected from database');
+      writeLog('database.disconnected', { level: 'warn' });
     });
 
     return conn;
   } catch (err) {
-    console.error('[MongoDB] Initial connection error:', err.message);
+    writeLog('database.connect.failed', { level: 'error', errorType: err.name || 'Error' });
     throw err;
   }
 }

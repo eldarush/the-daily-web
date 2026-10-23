@@ -32,6 +32,9 @@ app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : false);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Observe parsers, static assets and routes, including failures before sessions load.
+app.use(operationalLogger);
+
 // The same feed loader serves HTML and JSON; read/unread searches POST their ID
 // list without changing articles. Register this larger parser before the default
 // parser, which would otherwise reject the body before the route is reached.
@@ -46,7 +49,6 @@ app.use('/vendor/chart.js', express.static(path.join(__dirname, 'node_modules/ch
 // Order matters: the session must load before loadCurrentUser reads it,
 // and both run before any route, so every route knows who is calling.
 app.use(createSessionMiddleware());
-app.use(operationalLogger);
 app.use(loadCurrentUser);
 
 app.use((req, res, next) => {

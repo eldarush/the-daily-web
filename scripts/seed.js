@@ -14,6 +14,7 @@
  */
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const { writeLog } = require('../config/logger');
 
 dotenv.config();
 
@@ -183,9 +184,10 @@ async function seed() {
   const withRevision = new Set(published.slice(0, 15).map((a) => a._id.toString()));
   const viewDocs = [];
 
-  for (const article of published) {
+  for (const [index, article] of published.entries()) {
     const updateTimes = [];
-    const count = randInt(1, 3);
+    // Cycle the counts so examples with multiple approved updates always exist.
+    const count = 1 + index % 3;
     const publishedMs = article.publishedAt.getTime();
     // Even spacing guarantees chronological, past updates for every article,
     // including the youngest posts, with view buckets before and after each one.
@@ -255,6 +257,6 @@ async function seedComments(articles) {
 }
 
 seed().catch(function (err) {
-  console.error('Seed failed:', err);
+  writeLog('seed.failed', { level: 'error', errorType: err.name || 'Error' });
   process.exit(1);
 });

@@ -137,16 +137,33 @@ the failed page without skipping a batch.
 
 ## Operational logs
 
-Sign-in/out, article workflow, user/comment/statistics mutations and their HTTP
-outcomes are appended as JSON lines to `logs/operations.jsonl`. Centralized
-unexpected request failures are persisted there too. Records contain timestamp,
-operation area, method, route template, HTTP status and actor ID. Request bodies,
-passwords, session/device cookies, query strings and article/comment text are
-excluded. The directory is ignored by Git. Set `LOG_DIRECTORY` to an existing
-deployment log location or let the app create the default directory. Give only
-the service account access, configure rotation/retention on the hosting system,
-and monitor stderr for a failed log destination. A logging failure does not make
-a successfully completed database operation appear to have failed.
+Every completed HTTP request emits one JSON record to the console, including
+page/API reads, mutations, static assets and parser failures. A connection closed
+before the response finishes emits one warning with internal status `499`; this
+is a log classification, not a response sent to the disconnected client.
+
+Routine `2xx`/`3xx` outcomes use level `info` and are **not saved to a file**.
+Client errors (`4xx`, including denied access and comment rate limits) use `warn`
+and count as important events. Server errors (`5xx`) use `error` and count as
+critical events. Only `warn`/`error` records are appended to
+`logs/operations.jsonl`. Unexpected exceptions also emit an error-type record.
+Database errors, startup/seed failures and failed readership writes are critical;
+database disconnects and weather-provider failures are important availability
+events. These infrastructure events carry an explicit level without inventing an
+HTTP response status. Normal server/seed progress stays console-only.
+
+Records contain timestamp, level, event, known feature area, method, matched route
+template, HTTP status and actor ID when available. Unmatched/static requests use
+a fixed route label; raw URL paths, query strings, request bodies, passwords,
+session/device cookies and article/comment text are excluded. The logger accepts
+only those metadata fields. It observes requests before parsers and static files,
+then reads the final route and identity when the response completes.
+
+The directory is ignored by Git. Set `LOG_DIRECTORY` to a deployment log location
+or let the app create the default directory for the first important/critical
+event. Give only the service account access and configure rotation/retention on
+the hosting system. A file-write failure is reported to the console without
+exposing event fields or turning a completed operation into a failed request.
 
 ## Weather
 
@@ -262,6 +279,38 @@ hosted database or the team's HTTPS setup. Verify those on the actual hosting
 system, and run the tested version on each presentation computer before submission.
 The load checks exercise thousands of stored articles and concurrent requests;
 they are not a claim about thousands of simultaneous deployed readers.
+
+
+## Demonstration checklist
+
+The seed supplies the data for the demonstration requirements:
+
+| Requirement | Seeded example |
+| --- | --- |
+| At least 500 articles in varied states/categories | 520 articles across all seven categories: 390 published, 52 drafts, 52 pending approval and 26 rejected. |
+| Several reporters and an editor | `reporter1` through `reporter4`, plus `editor`. |
+| Article comments | 120 comments on 60 published articles. |
+| Work in progress and work awaiting approval | Draft and pending articles, plus 15 separate pending revisions of published posts. |
+| Articles updated after publication | Every published post has one to three attributed, chronological editor updates; the counts cycle so multiple-update examples are guaranteed. |
+| Views over time and Impact Analytics milestones | Hourly synthetic view buckets over up to seven days, surrounding each approved update; the chart shows editor-update markers. |
+
+Demonstrate these live behaviors against the disposable seeded database as well:
+
+1. Sign in as a reporter and an editor to show permissions; try the same guarded
+   action as a guest and as the wrong role.
+2. Edit and autosave a draft, submit it, review it as the editor, then approve or
+   return it. Submit a revision of an already-published article to show that its
+   live text stays available until approval.
+3. Restart `npm start` with the same MongoDB database and `SESSION_SECRET` to show
+   persisted data and sessions. Keep the browser cookie between restarts.
+4. Combine feed search, category, read/unread and date/popularity filters; load
+   another page and open an article.
+5. Post guest comments and reach the rolling-minute limit, then show that signing
+   in/out does not reset that browser's guest budget.
+6. Show the weather sidebar receiving data from Open-Meteo and handling an
+   unavailable or expired observation.
+
+Seed data makes these cases available; it does not replace the runtime checks.
 
 ## Contributors and recorded work
 
