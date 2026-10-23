@@ -35,6 +35,13 @@
       <span id="rejection-notes"></span>
     </div>
 
+    <%# Filled by autosave.js when the editor changed the submitted text. %>
+    <div id="editor-changes" class="editor-changes" hidden>
+      <h3>What the editor changed</h3>
+      <p class="editor-changes-hint">Words the editor added are <ins class="diff-add">green and bold</ins>; words they removed are <del class="diff-del">red and crossed out</del>.</p>
+      <div id="editor-changes-list"></div>
+    </div>
+
     <div id="published-banner" class="published-banner" hidden>
       This article is live. Your edits are staged and stay private until an editor approves them.
     </div>
@@ -69,6 +76,7 @@
 <script>
   window.__ARTICLE_CATEGORIES__ = <%- JSON.stringify(categories) %>;
 </script>
+<script src="/js/diff-viewer.js"></script>
 <script src="/js/autosave.js"></script>
 
 <%- include('../partials/footer') %>

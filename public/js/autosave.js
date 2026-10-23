@@ -15,6 +15,9 @@
   const rejectionNotes = document.getElementById('rejection-notes');
   const publishedBanner = document.getElementById('published-banner');
   const categorySelect = document.getElementById('article-category');
+  const changesEl = document.getElementById('editor-changes');
+  const changesList = document.getElementById('editor-changes-list');
+  const CHANGE_LABELS = { title: 'Title', summary: 'Summary', category: 'Category', imageUrl: 'Image URL', content: 'Content' };
 
   let articles = [];
   let currentId = null;
@@ -40,6 +43,30 @@
     submit.textContent = state === 'pending' ? 'Awaiting review' : 'Submit for review';
     rejectionBanner.hidden = state !== 'rejected';
     rejectionNotes.textContent = article.status === 'published' ? article.pendingUpdate.editorNotes || '' : article.editorNotes || '';
+    renderEditorChanges(article);
+  }
+
+  /** Shows each field the editor changed, with their added and removed words marked. */
+  function renderEditorChanges(article) {
+    const changes = article.editorChanges;
+    changesList.innerHTML = '';
+    const fields = changes ? Object.keys(CHANGE_LABELS).filter(function (key) {
+      return (changes.before[key] || '') !== (changes.after[key] || '');
+    }) : [];
+    fields.forEach(function (key) {
+      const row = document.createElement('div');
+      row.className = 'change-field';
+      const label = document.createElement('div');
+      label.className = 'change-label';
+      label.textContent = CHANGE_LABELS[key];
+      const text = document.createElement('div');
+      text.className = 'change-text';
+      // DiffViewer escapes the text and only adds its own <ins>/<del> tags
+      text.innerHTML = window.DiffViewer.render(changes.before[key] || '', changes.after[key] || '').inlineHtml;
+      row.append(label, text);
+      changesList.appendChild(row);
+    });
+    changesEl.hidden = fields.length === 0;
   }
 
   function readForm() {

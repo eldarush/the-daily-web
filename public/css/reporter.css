@@ -207,6 +207,40 @@
   margin-bottom: 1rem;
   font-size: 0.9rem;
 }
+/* The editor's changes, shown to the reporter as one text with the edits marked */
+.editor-changes {
+  border: 1px solid var(--color-warning);
+  background: #fffaf0;
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+.editor-changes h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+.editor-changes-hint { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--color-text-muted); }
+.change-field { margin-top: 0.6rem; }
+.change-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.change-text {
+  font-family: var(--font-serif);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  margin-top: 0.25rem;
+}
+.editor-changes ins.diff-add { background: #c6f6d5; color: #22543d; font-weight: 700; text-decoration: none; }
+.editor-changes del.diff-del { background: #fed7d7; color: #9b2c2c; text-decoration: line-through; }
+
 .rejection-banner { background: #fff5f5; border: 1px solid var(--color-danger); color: #822727; }
 .published-banner { background: #ebf8ff; border: 1px solid var(--color-info); color: #2a4365; }
 
