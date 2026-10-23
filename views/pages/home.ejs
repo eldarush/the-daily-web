@@ -1,4 +1,7 @@
-<%- include('../partials/header') %>
+<%#
+   The first batch is rendered here. newsfeed.js clones feed-card from the template
+   for later JSON responses, so both card paths must keep the same DOM hooks.
+%><%- include('../partials/header') %>
 
 <link rel="stylesheet" href="/css/newsfeed.css">
 

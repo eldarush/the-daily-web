@@ -25,6 +25,8 @@
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
 }
+/* DiffViewer inserts escaped text plus its own ins/del tags; preserve spacing
+   and let each version scroll independently within this content block. */
 .diff-content {
   font-family: var(--font-serif);
   font-size: 0.95rem;
