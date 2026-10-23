@@ -11,5 +11,6 @@
 <body>
   <%- include('./navbar') %>
 
-  <div class="site-container">
+  <%# Pages that need the full width (the reporter's editor) pass wide: true; the sidebar then moves below. %>
+  <div class="site-container<%= typeof wide !== 'undefined' && wide ? ' site-container-wide' : '' %>">
     <main class="main-content" id="main-content">
