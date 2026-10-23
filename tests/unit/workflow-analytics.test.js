@@ -384,6 +384,45 @@ describe('Module 4: Workflow, Dual-Version, Diff & Impact Analytics', () => {
       }
     });
 
+    test('editor changes keep the reporter text from before the first edit, until resubmit', async () => {
+      const a = await makeArticle({ status: 'pending', title: 'Reporter title', content: 'Reporter words here' });
+      await editorAgent.put(`/api/editor/articles/${a._id}`).send({ content: 'Editor words here' });
+      await editorAgent.put(`/api/editor/articles/${a._id}`).send({ title: 'Editor title' });
+
+      let fresh = await Article.findById(a._id);
+      expect(fresh.editorChanges.before.title).toBe('Reporter title');
+      expect(fresh.editorChanges.before.content).toBe('Reporter words here');
+      expect(fresh.editorChanges.after.title).toBe('Editor title');
+      expect(fresh.editorChanges.after.content).toBe('Editor words here');
+
+      // returning it keeps the changes, and the reporter's list sends them along
+      await editorAgent.post(`/api/editor/articles/${a._id}/reject`).send({ notes: 'See my edits' });
+      const list = await reporterAgent.get('/api/reporter/articles');
+      expect(list.body.articles.find(x => x._id === a._id.toString()).editorChanges.after.title).toBe('Editor title');
+
+      // resubmitting starts a new review with a clean slate
+      await reporterAgent.post(`/api/reporter/articles/${a._id}/submit`);
+      fresh = await Article.findById(a._id);
+      expect(fresh.status).toBe('pending');
+      expect(fresh.editorChanges).toBeUndefined();
+    });
+
+    test('editor changes on a revision are recorded and cleared on approval', async () => {
+      const a = await makeArticle({
+        status: 'published', title: 'Live', publishedAt: new Date(),
+        pendingUpdate: { hasUpdate: true, status: 'pending', title: 'Revised', summary: 's', content: 'c', category: 'News' }
+      });
+      await editorAgent.put(`/api/editor/articles/${a._id}`).send({ title: 'Editor revised' });
+      let fresh = await Article.findById(a._id);
+      expect(fresh.editorChanges.before.title).toBe('Revised');
+      expect(fresh.editorChanges.after.title).toBe('Editor revised');
+
+      await editorAgent.post(`/api/editor/articles/${a._id}/approve`).send({});
+      fresh = await Article.findById(a._id);
+      expect(fresh.title).toBe('Editor revised');
+      expect(fresh.editorChanges).toBeUndefined();
+    });
+
     test('editor edit guards + error forwarding', async () => {
       const invalid = await editorAgent.put('/api/editor/articles/zzz').send({ title: 'x' });
       expect(invalid.status).toBe(400);

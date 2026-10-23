@@ -6,6 +6,11 @@ const ViewAnalytics = require('../models/ViewAnalytics');
 const PAGE_SIZE = 20;
 const EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'imageUrl'];
 
+/** Copies the editable text fields of an article or revision into a plain object. */
+function textOf(source) {
+  return Object.fromEntries(EDITABLE_FIELDS.map(key => [key, source[key]]));
+}
+
 /**
  * Loads an article by id with a validity/existence guard.
  * @param {string} articleId - Article id.
@@ -129,11 +134,13 @@ async function editArticle(req, res, next) {
       return res.status(409).json({ error: 'Only submitted articles can be edited. The reporter is still working on this one.' });
     }
 
-    if (article.status === 'published') {
-      Object.assign(article.pendingUpdate, fields, { updatedAt: new Date() });
-    } else {
-      Object.assign(article, fields);
-    }
+    const target = article.status === 'published' ? article.pendingUpdate : article;
+    // Keep the reporter's text from before the editor's first edit in this review,
+    // so the reporter later sees everything the editor changed, not only the last save.
+    const before = article.editorChanges ? textOf(article.editorChanges.before) : textOf(target);
+    Object.assign(target, fields);
+    if (article.status === 'published') target.updatedAt = new Date();
+    article.editorChanges = { before, after: textOf(target), editedAt: new Date() };
 
     await article.save();
     return res.json({ success: true });
@@ -194,6 +201,7 @@ async function approveArticle(req, res, next) {
     }
 
     article.editorNotes = '';
+    article.editorChanges = undefined;
     await article.save();
     return res.json({ success: true, status: article.status });
   } catch (err) {

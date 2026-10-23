@@ -50,6 +50,34 @@ const publishedUpdateSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/**
+ * The text fields of one version of an article, for comparing two versions.
+ */
+const articleTextSchema = new mongoose.Schema(
+  {
+    title: String,
+    summary: String,
+    content: String,
+    category: String,
+    imageUrl: String
+  },
+  { _id: false }
+);
+
+/**
+ * What an editor changed in a submitted article: the reporter's text before the
+ * editor's first edit, and the editor's latest version. The reporter's workspace
+ * highlights the difference. Cleared when the reporter resubmits or it is approved.
+ */
+const editorChangesSchema = new mongoose.Schema(
+  {
+    before: articleTextSchema,
+    after: articleTextSchema,
+    editedAt: Date
+  },
+  { _id: false }
+);
+
 const articleSchema = new mongoose.Schema(
   {
     title: { type: String, default: '', trim: true },
@@ -78,7 +106,10 @@ const articleSchema = new mongoose.Schema(
     pendingUpdate: { type: pendingUpdateSchema, default: () => ({}) },
 
     // Timestamps of editor updates, for analytics milestone markers.
-    publishedUpdates: { type: [publishedUpdateSchema], default: [] }
+    publishedUpdates: { type: [publishedUpdateSchema], default: [] },
+
+    // Set while an editor's edits to a submitted article wait for the reporter to see them.
+    editorChanges: { type: editorChangesSchema, default: undefined }
   },
   { timestamps: true }
 );
