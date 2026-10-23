@@ -208,3 +208,11 @@ test('the chart.js browser build is served from the vendor route', async () => {
   expect(res.headers['content-type']).toMatch(/javascript/);
   expect(res.text).toContain('Chart.js');
 });
+
+test('the analytics page loads chart.js before the chart script', async () => {
+  const res = await agent.get('/editor/analytics');
+  expect(res.status).toBe(200);
+  const library = res.text.indexOf('/vendor/chart.js/chart.umd.js');
+  expect(library).toBeGreaterThan(-1);
+  expect(library).toBeLessThan(res.text.indexOf('/js/impact-chart.js'));
+});

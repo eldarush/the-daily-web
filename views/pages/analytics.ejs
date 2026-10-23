@@ -58,7 +58,9 @@
   </div>
 </div>
 
-<%# Loaded last, so every element above already exists when the script runs. %>
+<%# Loaded last, so every element above already exists when the script runs.
+    chart.js comes first: impact-chart.js uses its global Chart. %>
+<script src="/vendor/chart.js/chart.umd.js"></script>
 <script src="/js/impact-chart.js"></script>
 
 <%- include('../partials/footer') %>
