@@ -170,17 +170,22 @@
 
 .modal-actions {
   background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 .modal-actions .reject-box { margin: 0; padding: 1rem 1.5rem 0; }
-/* On wide screens the buttons stay at the bottom of the window while the form scrolls.
-   On phones they would take too much of the screen, so they scroll with the page. */
+.modal-actions .modal-footer { border-top: none; }
+/* On wide screens the window fits the screen: only the article scrolls, and the
+   buttons sit below it, so they are always in view and never cover the text.
+   On phones they would take too much of the screen, so everything scrolls together. */
 @media (min-width: 601px) {
-  .modal-actions {
-    position: sticky;
-    bottom: 0;
-    box-shadow: 0 -6px 10px -8px rgba(0, 0, 0, 0.25);
+  .modal { max-height: 94vh; }
+  .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
   }
+  .modal-actions { flex: none; }
 }
 
 @media (max-width: 600px) {
