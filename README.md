@@ -2,7 +2,8 @@
 
 A news publishing system built with Node.js, Express, MongoDB/Mongoose and EJS.
 The browser uses semantic HTML, responsive CSS/Flexbox, Vanilla JavaScript,
-native `fetch` for Ajax, and canvas for analytics. There is no frontend framework
+native `fetch` for Ajax, and Chart.js (drawn on a canvas) for analytics. Chart.js
+is served from `node_modules`, so there is no CDN. There is no frontend framework
 or build step.
 
 ## Install and run
@@ -88,7 +89,7 @@ case-sensitive.
   prevent submission. A fresh browser loads the last server-confirmed version.
   Sign-out waits for pending saves and stays in the workspace if saving fails.
   An offline device must reconnect for another computer to receive its edits.
-- Staff lists and the analytics selector have pagination. Canvas shows hourly
+- Staff lists and the analytics selector have pagination. Chart.js shows hourly
   views and publication markers on one timeline, including zero-view gaps and
   visible single-hour points. Changing the selection clears the previous chart.
 - User, article, comment and view-statistics operations use server authorization.
