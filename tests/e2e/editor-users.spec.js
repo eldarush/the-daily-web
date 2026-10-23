@@ -181,13 +181,72 @@ test('success text cannot execute markup from a username', async ({ page }) => {
 
 test('cancelling clears the password and returns focus to the editor control', async ({ page }) => {
   await openForm(page);
+  await expect(page.getByRole('button', { name: 'Add User', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#create-user-form')).toHaveAttribute('method', 'post');
+  await expect(page.locator('#create-user-form')).toHaveAttribute('action', '/api/users');
   await fillForm(page, 'user_ui_created_cancel');
   await page.locator('#cancel-create-user').click();
   await expect(page.locator('#create-user-panel')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add User', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Add User', exact: true }).click();
   await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  await page.getByLabel('Username', { exact: true }).press('Escape');
+  await expect(page.locator('#create-user-panel')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Add User', exact: true })).toHaveAttribute('aria-expanded', 'false');
   expect(await User.countDocuments({ username: 'user_ui_created_cancel' })).toBe(0);
+});
+
+test('deleting an editor revokes an already open user form immediately', async ({ page }) => {
+  const removed = await User.create({ username: 'user_ui_created_deleted_editor', password, fullName: 'Deleted Editor', role: 'editor' });
+  await login(page, removed.username);
+  await page.goto('/editor');
+  await page.getByRole('button', { name: 'Add User', exact: true }).click();
+  await fillForm(page, 'user_ui_created_after_deletion');
+  await User.deleteOne({ _id: removed._id });
+  await page.getByRole('button', { name: 'Create User', exact: true }).click();
+  await expect(page.locator('#create-user-status')).toContainText('Sign in');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  expect(await User.countDocuments({ username: 'user_ui_created_after_deletion' })).toBe(0);
+});
+
+test('native and trimmed form validation prevent invalid credentials from being posted', async ({ page }) => {
+  await openForm(page);
+  let posts = 0;
+  page.on('request', req => { if (req.method() === 'POST' && req.url().endsWith('/api/users')) posts++; });
+  await fillForm(page, 'user_ui_created_invalid');
+  await page.getByLabel('Password', { exact: true }).fill('123');
+  await page.getByRole('button', { name: 'Create User', exact: true }).click();
+  expect(await page.getByLabel('Password', { exact: true }).evaluate(el => el.validity.tooShort)).toBe(true);
+  await page.getByLabel('Password', { exact: true }).fill('      ');
+  await page.getByRole('button', { name: 'Create User', exact: true }).click();
+  await expect(page.locator('#create-user-status')).toContainText('Password must contain');
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Full name', { exact: true }).fill('   ');
+  await page.getByRole('button', { name: 'Create User', exact: true }).click();
+  await expect(page.locator('#create-user-status')).toHaveText('Full name is required.');
+  expect(posts).toBe(0);
+});
+
+test('the API rejects NoSQL objects and invalid roles and ignores mass-assigned fields', async ({ page }) => {
+  await login(page);
+  const base = { username: 'user_ui_created_bad_payload', password, fullName: 'Validated User', role: 'reporter' };
+  for (const invalid of [{ username: { $ne: null } }, { password: { $gt: '' } }, { fullName: { $gt: '' } }, { role: 'admin' }, { role: { $in: ['editor'] } }]) {
+    expect((await page.request.post('/api/users', { data: { ...base, ...invalid } })).status()).toBe(400);
+  }
+  expect(await User.countDocuments({ username: base.username })).toBe(0);
+  const username = 'user_ui_created_whitelisted';
+  const response = await page.request.post('/api/users', { data: {
+    username, password, fullName: '  Whitelisted User  ',
+    _id: '000000000000000000000001', createdAt: '2000-01-01', isAdmin: true
+  } });
+  expect(response.status()).toBe(201);
+  const stored = await User.findOne({ username }).lean();
+  expect(stored.role).toBe('reporter');
+  expect(stored.fullName).toBe('Whitelisted User');
+  expect(String(stored._id)).not.toBe('000000000000000000000001');
+  expect(stored.createdAt.getFullYear()).not.toBe(2000);
+  expect(stored.isAdmin).toBeUndefined();
+  expect((await response.json()).user.password).toBeUndefined();
 });
 
 test('the user form stays inside the page at the required screen widths', async ({ page }) => {

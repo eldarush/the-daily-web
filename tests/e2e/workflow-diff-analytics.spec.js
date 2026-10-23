@@ -60,7 +60,7 @@ test.describe('Hodara Track: Autosave Continuity, Editorial Review & Approval', 
     await expect(page.locator('.article-list-item', { hasText: title }).locator('.status-pill')).toContainText('pending', { timeout: 8000 });
   });
 
-  test('immediate switch, reload, close and failed save retain the captured article', async ({ page, context }) => {
+  test('immediate switch, reload, close and failed save retain the captured article', async ({ page, context, baseURL }) => {
     const reporter = await User.findOne({ username: REP });
     const a = await Article.create({ title: 'Switch source', summary: 'S', content: 'C', category: 'News', author: reporter._id });
     const b = await Article.create({ title: 'Switch target', summary: 'S', content: 'C', category: 'News', author: reporter._id });
@@ -89,7 +89,7 @@ test.describe('Hodara Track: Autosave Continuity, Editorial Review & Approval', 
     await page.fill('#article-content', 'Close edit');
     await page.close();
     await expect.poll(async () => (await Article.findById(a._id)).content).toBe('Close edit');
-    const fresh = await context.browser().newContext({ baseURL: 'http://localhost:3000' });
+    const fresh = await context.browser().newContext({ baseURL });
     const freshPage = await fresh.newPage();
     await login(freshPage, REP);
     await freshPage.waitForURL('**/workspace');
@@ -181,7 +181,7 @@ test.describe('Hodara Track: Autosave Continuity, Editorial Review & Approval', 
     expect(fresh.publishedUpdates).toHaveLength(1);
   });
 
-  test('blank editing and delayed exit saves recover across fresh sessions', async ({ page, context }) => {
+  test('blank editing and delayed exit saves recover across fresh sessions', async ({ page, context, baseURL }) => {
     const reporter = await User.findOne({ username: REP });
     const a = await Article.create({ title: 'Ordered saves', summary: 'S', content: 'C', category: 'News', author: reporter._id });
     await login(page, REP);
@@ -191,7 +191,7 @@ test.describe('Hodara Track: Autosave Continuity, Editorial Review & Approval', 
     await page.fill('#article-summary-input', '');
     await page.fill('#article-content', '');
     await expect(page.locator('#autosave-badge')).toContainText('All changes saved');
-    const fresh = await context.browser().newContext({ baseURL: 'http://localhost:3000' });
+    const fresh = await context.browser().newContext({ baseURL });
     const freshPage = await fresh.newPage();
     await login(freshPage, REP);
     await freshPage.waitForURL('**/workspace');
@@ -218,7 +218,7 @@ test.describe('Hodara Track: Autosave Continuity, Editorial Review & Approval', 
     await expect(page.locator('#autosave-badge')).toContainText('newer save');
     expect((await Article.findById(a._id)).content).toBe('Latest exit edit');
     await page.close();
-    const finalContext = await context.browser().newContext({ baseURL: 'http://localhost:3000' });
+    const finalContext = await context.browser().newContext({ baseURL });
     const finalPage = await finalContext.newPage();
     await login(finalPage, REP);
     await finalPage.waitForURL('**/workspace');
