@@ -38,13 +38,25 @@
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
+      logoutBtn.disabled = true;
+      const regions = Array.from(document.querySelectorAll('main, .main-nav, .brand-area'));
+      const inert = regions.map(region => region.inert);
+      regions.forEach(region => { region.inert = true; });
+      let leaving = false;
       try {
+        if (window.saveBeforeSignOut && !(await window.saveBeforeSignOut())) return;
         const res = await fetch('/api/auth/logout', { method: 'POST' });
         if (res.ok) {
+          leaving = true;
           window.location.href = '/login';
         }
       } catch (err) {
         console.error('Logout error:', err);
+      } finally {
+        if (!leaving) {
+          regions.forEach((region, i) => { region.inert = inert[i]; });
+          logoutBtn.disabled = false;
+        }
       }
     });
   }

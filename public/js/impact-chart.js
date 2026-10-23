@@ -42,9 +42,21 @@
   // the nearest hour without redrawing anything.
   let points = []; // { x, y, time, views }
   let milestones = []; // { x, time, changelogNote }
+  let requestNumber = 0;
 
   function clear() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function resetChart() {
+    requestNumber++;
+    points = [];
+    milestones = [];
+    clear();
+    canvas.hidden = true;
+    summaryEl.hidden = true;
+    emptyEl.hidden = true;
+    tooltip.hidden = true;
   }
 
   // Size of the drawing area inside the padding (canvas is 900 × 380).
@@ -90,7 +102,7 @@
       const d = new Date(t);
       // Shown in the viewer's local time zone (buckets are stored in UTC).
       const text = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
-        d.toLocaleTimeString([], { hour: '2-digit' });
+        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       ctx.fillText(text, x, PAD.top + plotHeight() + 8);
     });
   }
@@ -109,9 +121,7 @@
     ctx.fillStyle = COLOR_FILL;
     ctx.fill();
 
-    // Line
-    // Connects the hours that have data; an hour with no views has no point,
-    // so the line goes straight from its neighbour to the next one.
+    // Line, including explicit zero points for hours without stored counters.
     ctx.beginPath();
     points.forEach(function (p, i) {
       if (i === 0) ctx.moveTo(p.x, p.y);
@@ -120,6 +130,12 @@
     ctx.strokeStyle = COLOR_LINE;
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.fillStyle = COLOR_LINE;
+    points.forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
   }
 
   // Draws a dashed orange vertical line (+ triangle on top) at the moment
@@ -155,7 +171,18 @@
     clear();
 
     // No view counters yet (e.g. a brand-new article): show a message instead of an empty chart.
-    const timeline = data.timeline || [];
+    const timeline = [];
+    const hour = 60 * 60 * 1000;
+    (data.timeline || []).forEach(function (record) {
+      const previous = timeline[timeline.length - 1];
+      const time = new Date(record.time).getTime();
+      if (previous) {
+        const before = new Date(previous.time).getTime();
+        if (time - before > hour) timeline.push({ time: new Date(before + hour).toISOString(), views: 0 });
+        if (time - before > 2 * hour) timeline.push({ time: new Date(time - hour).toISOString(), views: 0 });
+      }
+      timeline.push(record);
+    });
     if (timeline.length === 0) {
       emptyEl.hidden = false;
       canvas.hidden = true;
@@ -171,8 +198,9 @@
     const times = timeline.map(function (r) { return new Date(r.time).getTime(); })
       .concat((data.milestones || []).map(function (m) { return new Date(m.time).getTime(); }));
     const views = timeline.map(function (r) { return r.views; });
-    const tMin = Math.min.apply(null, times);
-    const tMax = Math.max.apply(null, times);
+    let tMin = Math.min.apply(null, times);
+    let tMax = Math.max.apply(null, times);
+    if (tMin === tMax) { tMin -= hour / 2; tMax += hour / 2; }
     const maxViews = Math.max(1, Math.max.apply(null, views)); // at least 1: never divide by 0
     const span = tMax - tMin || 1; // one single hour → avoid dividing by 0
 
@@ -292,13 +320,18 @@
   // Fills the dropdown with published articles, 20 per page.
   // Server: routes/api/analyticsRoutes.js → analyticsController.listPublishedArticles.
   async function loadArticleOptions() {
+    resetChart();
+    const currentRequest = requestNumber;
+    selectEl.disabled = true;
     try {
       const res = await fetch('/api/analytics/articles?page=' + articlePage);
+      if (currentRequest !== requestNumber) return;
       if (!res.ok) {
         selectEl.innerHTML = '<option value="">Could not load</option>';
         return;
       }
       const body = await res.json();
+      if (currentRequest !== requestNumber) return;
       const list = body.articles || [];
       pageEl.textContent = 'Page ' + articlePage;
       previousEl.disabled = articlePage === 1;
@@ -315,7 +348,10 @@
         selectEl.appendChild(opt);
       });
     } catch (err) {
+      if (currentRequest !== requestNumber) return;
       selectEl.innerHTML = '<option value="">Could not load</option>';
+    } finally {
+      if (currentRequest === requestNumber) selectEl.disabled = false;
     }
   }
 
@@ -325,18 +361,17 @@
   // ViewAnalytics.find({ article: articleId }) + the article's publishedUpdates).
   async function handleSelect() {
     const id = selectEl.value;
-    if (!id) {
-      clear();
-      summaryEl.hidden = true;
-      emptyEl.hidden = true;
-      return;
-    }
+    resetChart();
+    const currentRequest = requestNumber;
+    if (!id) return;
     try {
       const res = await fetch('/api/analytics/' + id);
       if (!res.ok) throw new Error('Could not load statistics');
       const data = await res.json();
+      if (currentRequest !== requestNumber) return;
       render(data);
     } catch (err) {
+      if (currentRequest !== requestNumber) return;
       clear();
       canvas.hidden = true;
       summaryEl.hidden = true;

@@ -8,6 +8,7 @@ const { createSessionMiddleware } = require('./config/session');
 const { loadCurrentUser, requireAuth } = require('./middlewares/auth');
 const { requireRole } = require('./middlewares/rbac');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { operationalLogger } = require('./middlewares/operationalLogger');
 const Article = require('./models/Article');
 
 const authRoutes = require('./routes/api/authRoutes');
@@ -39,6 +40,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Order matters: the session must load before loadCurrentUser reads it,
 // and both run before any route, so every route knows who is calling.
 app.use(createSessionMiddleware());
+app.use(operationalLogger);
 app.use(loadCurrentUser);
 
 app.use((req, res, next) => {
