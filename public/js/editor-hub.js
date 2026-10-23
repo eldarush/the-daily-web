@@ -130,6 +130,22 @@
       'Content:\n' + fields.content].join('\n\n');
   }
 
+  // Approve and Return only work on submitted work, so when they are off
+  // the status line says why.
+  function describeState(body, submitted) {
+    if (body.pending) {
+      const label = 'Revision: ' + body.pending.status;
+      if (submitted) return label;
+      if (body.pending.status === 'rejected') {
+        return label + '. Returned to the reporter. Approve and Return are off until they fix it and resubmit.';
+      }
+      return label + '. The reporter is still editing it. Approve and Return are off until they submit it.';
+    }
+    if (submitted) return body.status;
+    if (body.status === 'published') return 'published. There is no proposed revision to review.';
+    return body.status + '. Waiting for the reporter. Approve and Return are off until they submit it.';
+  }
+
   async function openModal(id) {
     const version = ++modalVersion;
     currentId = id;
@@ -145,7 +161,7 @@
       const submitted = body.status === 'pending' || (body.status === 'published' && body.pending && body.pending.status === 'pending');
       document.getElementById('btn-approve').disabled = !submitted;
       document.getElementById('btn-reject').disabled = !submitted;
-      modalStatus.textContent = body.pending ? 'Revision: ' + body.pending.status : body.status;
+      modalStatus.textContent = describeState(body, submitted);
 
       if (body.pending) {
         const diff = window.DiffViewer.render(combined(body.live), combined(body.pending));

@@ -84,21 +84,23 @@
         <label for="edit-content">Content</label>
         <textarea id="edit-content" rows="10" disabled></textarea>
       </form>
+    </div>
 
+    <%# Buttons, notes box and status line stay on screen while the long form scrolls. %>
+    <div class="modal-actions">
       <div id="reject-box" class="reject-box" hidden>
-        <label for="reject-notes">Notes to the reporter (required)</label>
+        <label for="reject-notes">Notes to the reporter (required). Then click “Return for corrections” again to send.</label>
         <textarea id="reject-notes" rows="3" placeholder="Explain what needs fixing…"></textarea>
       </div>
+      <div class="modal-footer">
+        <button id="btn-approve" class="btn btn-success" type="button">Approve &amp; Publish</button>
+        <button id="btn-reject" class="btn btn-danger" type="button">Return for corrections</button>
+        <button id="btn-edit" class="btn btn-outline" type="button">Edit</button>
+        <button id="btn-save-edit" class="btn btn-primary" type="button" hidden>Save changes</button>
+        <button id="btn-delete" class="btn btn-danger-outline" type="button">Delete</button>
+      </div>
+      <p id="modal-status" class="modal-status"></p>
     </div>
-
-    <div class="modal-footer">
-      <button id="btn-approve" class="btn btn-success" type="button">Approve &amp; Publish</button>
-      <button id="btn-reject" class="btn btn-danger" type="button">Return for corrections</button>
-      <button id="btn-edit" class="btn btn-outline" type="button">Edit</button>
-      <button id="btn-save-edit" class="btn btn-primary" type="button" hidden>Save changes</button>
-      <button id="btn-delete" class="btn btn-danger-outline" type="button">Delete</button>
-    </div>
-    <p id="modal-status" class="modal-status"></p>
   </div>
 </div>
 
