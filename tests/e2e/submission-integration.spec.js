@@ -19,7 +19,7 @@ test.afterAll(async () => {
   await mongoose.disconnect();
 });
 
-test('real feed cards open SSR articles and integrate viewed/unviewed filters', async ({ page, browser }) => {
+test('real feed cards open SSR articles and integrate viewed/unviewed filters', async ({ page, browser, baseURL }) => {
   await page.goto('/');
   const card = page.locator('.article-card').first();
   const id = await card.getAttribute('data-article-id');
@@ -30,10 +30,10 @@ test('real feed cards open SSR articles and integrate viewed/unviewed filters', 
   await page.locator('#viewed-filter').selectOption('viewed');
   await expect(page.locator('.article-card')).toHaveCount(1);
   expect(await page.locator('.article-card').getAttribute('data-article-id')).toBe(id);
-  const context = await browser.newContext({ javaScriptEnabled: false });
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
   try {
     const noScript = await context.newPage();
-    await noScript.goto('http://127.0.0.1:3000/articles/' + id);
+    await noScript.goto('/articles/' + id);
     await expect(noScript.locator('.article-content')).toContainText('Approved full article');
   } finally { await context.close(); }
 });

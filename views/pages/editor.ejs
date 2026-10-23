@@ -8,8 +8,36 @@
     <h1>Editor Management Hub</h1>
     <p class="subtitle">Welcome, <strong><%= user.fullName %></strong> — review, revise, approve.</p>
   </div>
-  <a href="/editor/analytics" class="btn btn-outline">Impact Analytics</a>
+  <div class="editor-page-actions">
+    <button id="add-user" class="btn btn-primary" type="button" aria-expanded="false" aria-controls="create-user-panel">Add User</button>
+    <a href="/editor/analytics" class="btn btn-outline">Impact Analytics</a>
+  </div>
 </div>
+
+<section id="create-user-panel" class="create-user-panel" aria-labelledby="create-user-heading" hidden>
+  <h2 id="create-user-heading">Add a new user</h2>
+  <p class="create-user-note">Only editors can create accounts. Choose the new user's role below.</p>
+  <form id="create-user-form" class="edit-form" method="post" action="/api/users">
+    <label for="create-user-username">Username</label>
+    <input id="create-user-username" name="username" type="text" required minlength="3" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="create-user-full-name">Full name</label>
+    <input id="create-user-full-name" name="fullName" type="text" required autocomplete="name">
+    <label for="create-user-password">Password</label>
+    <input id="create-user-password" name="password" type="password" required minlength="6" autocomplete="new-password" aria-describedby="create-user-password-hint">
+    <p id="create-user-password-hint" class="create-user-note">Use at least 6 characters.</p>
+    <label for="create-user-role">Role</label>
+    <select id="create-user-role" name="role">
+      <option value="reporter">Reporter</option>
+      <option value="editor">Editor</option>
+    </select>
+    <div class="create-user-actions">
+      <button class="btn btn-primary" type="submit">Create User</button>
+      <button id="cancel-create-user" class="btn btn-outline" type="button">Cancel</button>
+    </div>
+  </form>
+  <p id="create-user-status" class="create-user-status" role="status" aria-live="polite" aria-atomic="true"></p>
+  <a id="create-user-login" href="/login" hidden>Sign in</a>
+</section>
 
 <div class="filter-bar">
   <label for="status-filter">Filter by status</label>
@@ -112,5 +140,6 @@
 
 <script src="/js/diff-viewer.js"></script>
 <script src="/js/editor-hub.js"></script>
+<script src="/js/editor-users.js"></script>
 
 <%- include('../partials/footer') %>

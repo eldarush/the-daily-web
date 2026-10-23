@@ -8,6 +8,37 @@
   flex-wrap: wrap;
 }
 
+.editor-page-actions,
+.create-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.create-user-panel {
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  max-width: 40rem;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.create-user-panel h2 { font-size: 1.2rem; }
+.create-user-note { font-size: 0.85rem; }
+.create-user-panel .edit-form label { color: var(--color-text-main); }
+.create-user-panel input,
+.create-user-panel select { min-width: 0; width: 100%; }
+.create-user-panel input:disabled,
+.create-user-panel select:disabled { opacity: 0.6; }
+.create-user-actions { margin-top: 1rem; }
+.create-user-status {
+  min-height: 1.5em;
+  margin-top: 0.75rem;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
