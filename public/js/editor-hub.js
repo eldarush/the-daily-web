@@ -130,20 +130,20 @@
       'Content:\n' + fields.content].join('\n\n');
   }
 
-  // Approve and Return only work on submitted work, so when they are off
+  // Approve, Return and Edit only work on submitted work, so when they are off
   // the status line says why.
   function describeState(body, submitted) {
     if (body.pending) {
       const label = 'Revision: ' + body.pending.status;
       if (submitted) return label;
       if (body.pending.status === 'rejected') {
-        return label + '. Returned to the reporter. Approve and Return are off until they fix it and resubmit.';
+        return label + '. Returned to the reporter. Approve, Return and Edit are off until they fix it and resubmit.';
       }
-      return label + '. The reporter is still editing it. Approve and Return are off until they submit it.';
+      return label + '. The reporter is still editing it. Approve, Return and Edit are off until they submit it.';
     }
     if (submitted) return body.status;
-    if (body.status === 'published') return 'published. There is no proposed revision to review.';
-    return body.status + '. Waiting for the reporter. Approve and Return are off until they submit it.';
+    if (body.status === 'published') return 'published. There is no proposed revision to review or edit.';
+    return body.status + '. Waiting for the reporter. Approve, Return and Edit are off until they submit it.';
   }
 
   async function openModal(id) {
@@ -161,6 +161,8 @@
       const submitted = body.status === 'pending' || (body.status === 'published' && body.pending && body.pending.status === 'pending');
       document.getElementById('btn-approve').disabled = !submitted;
       document.getElementById('btn-reject').disabled = !submitted;
+      // the reporter's copy is only locked once submitted; editing earlier would race their autosave
+      btnEdit.disabled = !submitted;
       modalStatus.textContent = describeState(body, submitted);
 
       if (body.pending) {
