@@ -111,6 +111,10 @@ test('review window keeps its buttons in view and says why Approve is off', asyn
   await expect(page.locator('#btn-approve')).toHaveCSS('opacity', '0.45');
   await expect(page.locator('#modal-status')).toContainText('Returned to the reporter');
   await expect(page.locator('#btn-approve')).toBeInViewport();
+  // only the article scrolls, and it ends where the buttons start, so they never cover its text
+  const box = async sel => page.locator(sel).boundingBox();
+  expect(await page.locator('.modal-body').evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect((await box('.modal-body')).y + (await box('.modal-body')).height).toBeLessThanOrEqual((await box('.modal-actions')).y + 1);
   await page.locator('#modal-close').click();
 
   // a submitted one: one click on Return opens the notes box without scrolling anywhere
@@ -124,6 +128,20 @@ test('review window keeps its buttons in view and says why Approve is off', asyn
   await page.locator('#btn-reject').click();
   await expect(page.locator('#review-modal')).toBeHidden();
   expect((await Article.findById(pending.id)).pendingUpdate.status).toBe('rejected');
+});
+
+test('reporter editor gets the width, even next to long titles', async ({ page }) => {
+  const a = await article({ title: 'A very long headline that would once stretch the list and squeeze the editor beside it', status: 'published', publishedAt: new Date(), pendingUpdate: { hasUpdate: true, status: 'draft', title: 'Revised', summary: 'Summary', content: 'Body', category: 'News', imageUrl: '/images/default-article.jpg' } });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await login(page, reporter);
+  await page.goto('/workspace');
+  await page.locator(`[data-id="${a.id}"]`).click();
+  const list = await page.locator('.article-list-panel').boundingBox();
+  const editorPanel = await page.locator('.editor-panel').boundingBox();
+  expect(list.width).toBeLessThanOrEqual(300);
+  expect(editorPanel.width).toBeGreaterThan(2 * list.width);
+  // the weather card moves below the editor instead of taking a column
+  expect((await page.locator('#site-sidebar').boundingBox()).y).toBeGreaterThan(editorPanel.y + editorPanel.height);
 });
 
 test('analytics draws a single-hour point and clears stale results on pagination', async ({ page }) => {
