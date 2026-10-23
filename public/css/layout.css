@@ -166,6 +166,11 @@ a:hover {
   text-align: center;
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background-color: var(--color-primary);
   color: #ffffff;
