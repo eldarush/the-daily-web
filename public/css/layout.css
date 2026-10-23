@@ -151,6 +151,15 @@ a:hover {
   gap: 1.5rem;
 }
 
+.site-container-wide {
+  flex-direction: column;
+}
+.site-container-wide .site-sidebar {
+  flex: none;
+  width: 100%;
+  max-width: 320px;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

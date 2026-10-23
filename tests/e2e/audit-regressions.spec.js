@@ -111,6 +111,10 @@ test('review window keeps its buttons in view and says why Approve is off', asyn
   await expect(page.locator('#btn-approve')).toHaveCSS('opacity', '0.45');
   await expect(page.locator('#modal-status')).toContainText('Returned to the reporter');
   await expect(page.locator('#btn-approve')).toBeInViewport();
+  // only the article scrolls, and it ends where the buttons start, so they never cover its text
+  const box = async sel => page.locator(sel).boundingBox();
+  expect(await page.locator('.modal-body').evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect((await box('.modal-body')).y + (await box('.modal-body')).height).toBeLessThanOrEqual((await box('.modal-actions')).y + 1);
   await page.locator('#modal-close').click();
 
   // a submitted one: one click on Return opens the notes box without scrolling anywhere
@@ -124,6 +128,51 @@ test('review window keeps its buttons in view and says why Approve is off', asyn
   await page.locator('#btn-reject').click();
   await expect(page.locator('#review-modal')).toBeHidden();
   expect((await Article.findById(pending.id)).pendingUpdate.status).toBe('rejected');
+});
+
+test('reporter editor gets the width, even next to long titles', async ({ page }) => {
+  const a = await article({ title: 'A very long headline that would once stretch the list and squeeze the editor beside it', status: 'published', publishedAt: new Date(), pendingUpdate: { hasUpdate: true, status: 'draft', title: 'Revised', summary: 'Summary', content: 'Body', category: 'News', imageUrl: '/images/default-article.jpg' } });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await login(page, reporter);
+  await page.goto('/workspace');
+  await page.locator(`[data-id="${a.id}"]`).click();
+  const list = await page.locator('.article-list-panel').boundingBox();
+  const editorPanel = await page.locator('.editor-panel').boundingBox();
+  expect(list.width).toBeLessThanOrEqual(300);
+  expect(editorPanel.width).toBeGreaterThan(2 * list.width);
+  // the weather card moves below the editor instead of taking a column
+  expect((await page.locator('#site-sidebar').boundingBox()).y).toBeGreaterThan(editorPanel.y + editorPanel.height);
+});
+
+test('editor edits only submitted work, and the reporter sees those edits marked', async ({ page }) => {
+  const draft = await article({ title: 'Still with the reporter', status: 'draft' });
+  await review(page, draft);
+  await expect(page.locator('#btn-edit')).toBeDisabled();
+  await expect(page.locator('#modal-status')).toContainText('Approve, Return and Edit are off');
+  await page.locator('#modal-close').click();
+
+  const a = await article({ title: 'Bike lanes open', status: 'pending', content: 'Riders said the lanes feel safe and fast.' });
+  await review(page, a);
+  await expect(page.locator('#btn-edit')).toBeEnabled();
+  await page.locator('#btn-edit').click();
+  await page.locator('#edit-content').fill('Riders said the protected lanes feel safe.');
+  await page.locator('#btn-save-edit').click();
+  await expect.poll(async () => (await Article.findById(a.id)).content).toBe('Riders said the protected lanes feel safe.');
+  await page.request.post(`/api/editor/articles/${a.id}/reject`, { data: { notes: 'Add a quote' } });
+
+  await login(page, reporter);
+  await page.goto('/workspace');
+  await page.locator(`[data-id="${a.id}"]`).click();
+  const changes = page.locator('#editor-changes');
+  await expect(changes).toBeVisible();
+  await expect(changes.locator('.change-label')).toHaveText(['Content']);
+  await expect(changes.locator('ins.diff-add', { hasText: 'protected' })).toHaveCSS('font-weight', '700');
+  await expect(changes.locator('del.diff-del', { hasText: 'fast.' })).toBeVisible();
+  await expect(page.locator('#rejection-notes')).toHaveText('Add a quote');
+
+  // once resubmitted, the next review starts clean
+  await page.locator('#submit-article-btn').click();
+  await expect(changes).toBeHidden();
 });
 
 test('analytics draws a single-hour point and clears stale results on pagination', async ({ page }) => {
@@ -167,7 +216,19 @@ test('analytics shows zero-view hours between stored counters', async ({ page })
   await page.goto('/editor/analytics');
   await page.locator('#article-select').selectOption(a.id);
   await expect(page.locator('#sum-total')).toHaveText('20');
-  const rect = await page.locator('canvas').boundingBox();
-  await page.mouse.move(rect.x + rect.width * 464 / 900, rect.y + rect.height * 334 / 380);
-  await expect(page.locator('#chart-tooltip')).toContainText('0 views');
+  // The zero point sits near the bottom of the chart, which can be below the fold;
+  // bring it into view and ask Chart.js where the filled-in 11:00 point is drawn.
+  await expect(async () => {
+    const canvas = page.locator('canvas');
+    await canvas.scrollIntoViewIfNeeded();
+    const point = await canvas.evaluate(el => {
+      const chart = window.Chart.getChart(el);
+      const i = chart.data.datasets[0].data.findIndex(p => p.y === 0);
+      const { x, y } = chart.getDatasetMeta(0).data[i];
+      return { x, y };
+    });
+    const rect = await canvas.boundingBox();
+    await page.mouse.move(rect.x + point.x, rect.y + point.y);
+    await expect(page.locator('#chart-tooltip')).toContainText('0 views', { timeout: 1000 });
+  }).toPass();
 });

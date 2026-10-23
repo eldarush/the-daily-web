@@ -82,7 +82,8 @@ app.get('/workspace', requireRole('reporter'), (req, res) => {
   res.render('pages/workspace', {
     title: 'Reporter Workspace',
     user: req.currentUser,
-    categories: Article.ARTICLE_CATEGORIES
+    categories: Article.ARTICLE_CATEGORIES,
+    wide: true
   });
 });
 

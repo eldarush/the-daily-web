@@ -24,9 +24,22 @@
   </aside>
 
   <section class="editor-panel" id="editor-panel" hidden>
+    <%# Save state and Submit sit above the form, so they are in view without scrolling past the story. %>
+    <div class="editor-toolbar">
+      <span id="autosave-badge" class="autosave-badge idle">Ready</span>
+      <button id="submit-article-btn" class="btn btn-primary" type="button">Submit for review</button>
+    </div>
+
     <div id="rejection-banner" class="rejection-banner" hidden>
       <strong>Returned for corrections:</strong>
       <span id="rejection-notes"></span>
+    </div>
+
+    <%# Filled by autosave.js when the editor changed the submitted text. %>
+    <div id="editor-changes" class="editor-changes" hidden>
+      <h3>What the editor changed</h3>
+      <p class="editor-changes-hint">Words the editor added are <ins class="diff-add">green and bold</ins>; words they removed are <del class="diff-del">red and crossed out</del>.</p>
+      <div id="editor-changes-list"></div>
     </div>
 
     <div id="published-banner" class="published-banner" hidden>
@@ -40,28 +53,30 @@
       <input type="text" id="article-title-input" name="title" maxlength="200" placeholder="Headline…">
 
       <label for="article-summary-input">Summary</label>
-      <textarea id="article-summary-input" name="summary" rows="2" placeholder="One-sentence teaser…"></textarea>
+      <textarea id="article-summary-input" name="summary" rows="3" placeholder="One-sentence teaser…"></textarea>
 
-      <label for="article-category">Category</label>
-      <select id="article-category" name="category"></select>
-
-      <label for="article-image">Image URL</label>
-      <input type="text" id="article-image" name="imageUrl" placeholder="/images/default-article.jpg">
+      <div class="field-row">
+        <div class="field">
+          <label for="article-category">Category</label>
+          <select id="article-category" name="category"></select>
+        </div>
+        <div class="field">
+          <label for="article-image">Image URL</label>
+          <input type="text" id="article-image" name="imageUrl" placeholder="/images/default-article.jpg">
+        </div>
+      </div>
 
       <label for="article-content">Content</label>
-      <textarea id="article-content" name="content" rows="14" placeholder="Write your story…"></textarea>
+      <textarea id="article-content" name="content" rows="20" placeholder="Write your story…"></textarea>
     </form>
 
-    <div class="editor-footer">
-      <span id="autosave-badge" class="autosave-badge idle">Ready</span>
-      <button id="submit-article-btn" class="btn btn-primary" type="button">Submit for review</button>
-    </div>
   </section>
 </div>
 
 <script>
   window.__ARTICLE_CATEGORIES__ = <%- JSON.stringify(categories) %>;
 </script>
+<script src="/js/diff-viewer.js"></script>
 <script src="/js/autosave.js"></script>
 
 <%- include('../partials/footer') %>

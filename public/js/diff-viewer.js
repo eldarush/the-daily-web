@@ -1,6 +1,7 @@
 /* Pure Vanilla JS side-by-side word diff.
-   Exposes window.DiffViewer.render(oldText, newText) -> { leftHtml, rightHtml }.
-   Left pane marks deletions (<del>), right pane marks additions (<ins>). */
+   Exposes window.DiffViewer.render(oldText, newText) -> { leftHtml, rightHtml, inlineHtml }.
+   Left pane marks deletions (<del>), right pane marks additions (<ins>);
+   inlineHtml shows both in one text, as the reporter workspace does. */
 (function () {
   'use strict';
 
@@ -37,20 +38,22 @@
    * Produces side-by-side diff HTML for two texts.
    * @param {string} oldText - The published (live) content.
    * @param {string} newText - The proposed revision.
-   * @returns {{ leftHtml: string, rightHtml: string }}
+   * @returns {{ leftHtml: string, rightHtml: string, inlineHtml: string }}
    */
   function render(oldText, newText) {
     const a = tokenize(oldText);
     const b = tokenize(newText);
     // Large articles use a complete escaped comparison without the quadratic word table.
     if (a.length * b.length > 250000) {
-      return { leftHtml: '<del class="diff-del">' + escapeHtml(oldText) + '</del>',
-        rightHtml: '<ins class="diff-add">' + escapeHtml(newText) + '</ins>' };
+      const removed = '<del class="diff-del">' + escapeHtml(oldText) + '</del>';
+      const added = '<ins class="diff-add">' + escapeHtml(newText) + '</ins>';
+      return { leftHtml: removed, rightHtml: added, inlineHtml: removed + added };
     }
     const table = lcsTable(a, b);
 
     let left = '';
     let right = '';
+    let inline = '';
     let i = 0;
     let j = 0;
 
@@ -58,26 +61,35 @@
       if (a[i] === b[j]) {
         left += escapeHtml(a[i]);
         right += escapeHtml(b[j]);
+        inline += escapeHtml(a[i]);
         i++;
         j++;
       } else if (table[i + 1][j] >= table[i][j + 1]) {
-        left += '<del class="diff-del">' + escapeHtml(a[i]) + '</del>';
+        const removed = '<del class="diff-del">' + escapeHtml(a[i]) + '</del>';
+        left += removed;
+        inline += removed;
         i++;
       } else {
-        right += '<ins class="diff-add">' + escapeHtml(b[j]) + '</ins>';
+        const added = '<ins class="diff-add">' + escapeHtml(b[j]) + '</ins>';
+        right += added;
+        inline += added;
         j++;
       }
     }
     while (i < a.length) {
-      left += '<del class="diff-del">' + escapeHtml(a[i]) + '</del>';
+      const removed = '<del class="diff-del">' + escapeHtml(a[i]) + '</del>';
+      left += removed;
+      inline += removed;
       i++;
     }
     while (j < b.length) {
-      right += '<ins class="diff-add">' + escapeHtml(b[j]) + '</ins>';
+      const added = '<ins class="diff-add">' + escapeHtml(b[j]) + '</ins>';
+      right += added;
+      inline += added;
       j++;
     }
 
-    return { leftHtml: left, rightHtml: right };
+    return { leftHtml: left, rightHtml: right, inlineHtml: inline };
   }
 
   window.DiffViewer = { render: render, tokenize: tokenize };

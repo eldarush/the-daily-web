@@ -205,6 +205,8 @@ async function submitArticle(req, res, next) {
 
     if (article.status !== 'published') article.status = 'pending';
     article.editorNotes = '';
+    // the reporter has seen the editor's changes and is sending a new version
+    article.editorChanges = undefined;
     await article.save();
 
     return res.json({ success: true, status: article.status, revisionStatus: article.pendingUpdate.status });

@@ -6,6 +6,11 @@ const ViewAnalytics = require('../models/ViewAnalytics');
 const PAGE_SIZE = 20;
 const EDITABLE_FIELDS = ['title', 'summary', 'content', 'category', 'imageUrl'];
 
+/** Copies the editable text fields of an article or revision into a plain object. */
+function textOf(source) {
+  return Object.fromEntries(EDITABLE_FIELDS.map(key => [key, source[key]]));
+}
+
 /**
  * Loads an article by id with a validity/existence guard.
  * @param {string} articleId - Article id.
@@ -87,8 +92,20 @@ async function getArticleDiff(req, res, next) {
 }
 
 /**
- * Editor edits the article body directly. On a published article the edit is
- * staged as a pending update (public keeps the live version); otherwise the
+ * True when the reporter has submitted the article (or a revision of a live one)
+ * and it waits for review. Only then is the reporter's copy locked, so only then
+ * can the editor change it without the reporter's autosave writing over it.
+ * @param {any} article - Article document.
+ * @returns {boolean}
+ */
+function isSubmitted(article) {
+  return article.status === 'pending' ||
+    (article.status === 'published' && article.pendingUpdate.hasUpdate && article.pendingUpdate.status === 'pending');
+}
+
+/**
+ * Editor edits a submitted article directly. On a published article the edit
+ * changes the staged revision (public keeps the live version); otherwise the
  * primary fields are updated in place.
  * @param {import('express').Request} req - Params.id, body of editable fields.
  * @param {import('express').Response} res - JSON { success }.
@@ -113,23 +130,17 @@ async function editArticle(req, res, next) {
     if (fields.category !== undefined && !Article.ARTICLE_CATEGORIES.includes(fields.category)) {
       return res.status(400).json({ error: 'Invalid category' });
     }
-
-    if (article.status === 'published') {
-      const previous = article.pendingUpdate.hasUpdate ? article.pendingUpdate : article;
-      article.pendingUpdate = {
-        status: article.pendingUpdate.status,
-        editorNotes: article.pendingUpdate.editorNotes || '',
-        hasUpdate: true,
-        title: fields.title ?? previous.title,
-        summary: fields.summary ?? previous.summary,
-        content: fields.content ?? previous.content,
-        category: fields.category ?? previous.category,
-        imageUrl: fields.imageUrl ?? previous.imageUrl,
-        updatedAt: new Date()
-      };
-    } else {
-      Object.assign(article, fields);
+    if (!isSubmitted(article)) {
+      return res.status(409).json({ error: 'Only submitted articles can be edited. The reporter is still working on this one.' });
     }
+
+    const target = article.status === 'published' ? article.pendingUpdate : article;
+    // Keep the reporter's text from before the editor's first edit in this review,
+    // so the reporter later sees everything the editor changed, not only the last save.
+    const before = article.editorChanges ? textOf(article.editorChanges.before) : textOf(target);
+    Object.assign(target, fields);
+    if (article.status === 'published') target.updatedAt = new Date();
+    article.editorChanges = { before, after: textOf(target), editedAt: new Date() };
 
     await article.save();
     return res.json({ success: true });
@@ -190,6 +201,7 @@ async function approveArticle(req, res, next) {
     }
 
     article.editorNotes = '';
+    article.editorChanges = undefined;
     await article.save();
     return res.json({ success: true, status: article.status });
   } catch (err) {
