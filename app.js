@@ -63,8 +63,9 @@ app.use('/api', commentRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
-  if (req.session && req.session.user) {
-    if (req.session.user.role === 'editor') return res.redirect('/editor');
+  // req.currentUser is the user loadCurrentUser just re-read from MongoDB.
+  if (req.currentUser) {
+    if (req.currentUser.role === 'editor') return res.redirect('/editor');
     return res.redirect('/workspace');
   }
   res.render('pages/login', {
@@ -79,7 +80,7 @@ app.use('/', webRoutes);
 app.get('/workspace', requireRole('reporter'), (req, res) => {
   res.render('pages/workspace', {
     title: 'Reporter Workspace',
-    user: req.session.user,
+    user: req.currentUser,
     categories: Article.ARTICLE_CATEGORIES
   });
 });
@@ -87,7 +88,7 @@ app.get('/workspace', requireRole('reporter'), (req, res) => {
 app.get('/editor', requireRole('editor'), (req, res) => {
   res.render('pages/editor', {
     title: 'Editor Management Hub',
-    user: req.session.user,
+    user: req.currentUser,
     categories: Article.ARTICLE_CATEGORIES,
     statuses: Article.ARTICLE_STATUSES
   });
@@ -97,7 +98,7 @@ app.get('/editor', requireRole('editor'), (req, res) => {
 app.get('/editor/analytics', requireRole('editor'), (req, res) => {
   res.render('pages/analytics', {
     title: 'Impact Analytics',
-    user: req.session.user
+    user: req.currentUser
   });
 });
 
