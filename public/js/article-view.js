@@ -18,9 +18,11 @@ if (articleImage) {
 const commentContent = document.getElementById('comment-content');
 const commentsList = document.getElementById('comments-list');
 const commentMessage = document.getElementById('comment-message');
+let postingComment = false;
 
 commentForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (postingComment) return;
 
     const authorNameInput = document.getElementById('author-name');
 
@@ -40,6 +42,11 @@ commentForm.addEventListener('submit', async (event) => {
         return;
     }
 
+    postingComment = true;
+    const controls = [commentContent, commentForm.querySelector('button[type="submit"]')];
+    if (authorNameInput) controls.push(authorNameInput);
+    controls.forEach(control => { control.disabled = true; });
+    commentMessage.textContent = 'Posting comment…';
     try {
         const response = await fetch('/api/comments', {
             method: 'POST',
@@ -98,6 +105,9 @@ commentForm.addEventListener('submit', async (event) => {
     catch(error) {
         commentMessage.textContent =
             'Something went wrong. Please try again';
+    } finally {
+        postingComment = false;
+        controls.forEach(control => { control.disabled = false; });
     }
 });
 

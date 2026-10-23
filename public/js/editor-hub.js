@@ -16,6 +16,10 @@
   const rejectNotes = document.getElementById('reject-notes');
   const btnEdit = document.getElementById('btn-edit');
   const btnSaveEdit = document.getElementById('btn-save-edit');
+  const reviewFeedback = document.getElementById('review-feedback');
+  const reviewMessage = document.getElementById('review-message');
+  const reviewRetry = document.getElementById('review-retry');
+  const reviewLogin = document.getElementById('review-login');
 
   const EDIT_FIELDS = {
     title: 'edit-title',
@@ -149,12 +153,27 @@
   async function openModal(id) {
     const version = ++modalVersion;
     currentId = id;
+    modal.hidden = true;
     modalStatus.textContent = '';
     rejectBox.hidden = true;
+    rejectNotes.value = '';
+    rejectNotes.disabled = false;
     setEditDisabled(true);
+    reviewFeedback.hidden = false;
+    reviewMessage.textContent = 'Loading review…';
+    reviewRetry.hidden = true;
+    reviewLogin.hidden = true;
     try {
       const res = await fetch('/api/editor/articles/' + id + '/diff');
-      if (!res.ok) return;
+      if (version !== modalVersion) return;
+      if (!res.ok) {
+        reviewLogin.hidden = res.status !== 401;
+        reviewMessage.textContent = res.status === 401
+          ? 'Your session has expired. Sign in to continue.'
+          : 'Could not load the review. Please retry.';
+        reviewRetry.hidden = false;
+        return;
+      }
       const body = await res.json();
       if (version !== modalVersion) return;
       fillEditForm(body.pending || body.live);
@@ -173,15 +192,19 @@
       } else {
         diffSection.hidden = true;
       }
+      reviewFeedback.hidden = true;
       modal.hidden = false;
     } catch (err) {
-      /* leave modal closed on failure */
+      if (version !== modalVersion) return;
+      reviewMessage.textContent = 'Could not load the review. Check your connection and retry.';
+      reviewRetry.hidden = false;
     }
   }
 
   function closeModal() {
     modalVersion++;
     modal.hidden = true;
+    reviewFeedback.hidden = true;
     currentId = null;
   }
 
@@ -198,7 +221,7 @@
     if (actionVersion === version) return false;
     actionVersion = version;
     // Keep the submitted snapshot fixed while the request is in flight.
-    const controls = Object.values(EDIT_FIELDS).map(id => document.getElementById(id)).concat(btnEdit);
+    const controls = Object.values(EDIT_FIELDS).map(id => document.getElementById(id)).concat(btnEdit, rejectNotes);
     const disabled = controls.map(control => control.disabled);
     controls.forEach(control => { control.disabled = true; });
     modalStatus.textContent = 'Working…';
@@ -224,6 +247,7 @@
   }
 
   async function handleApprove() {
+    if (actionVersion === modalVersion) return;
     if (!document.getElementById('edit-title').disabled) {
       const saved = await sendAction('/api/editor/articles/' + currentId,
         { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectEdits()) }, 'Saved');
@@ -242,6 +266,7 @@
   }
 
   async function handleReject() {
+    if (actionVersion === modalVersion) return;
     if (rejectBox.hidden) {
       rejectBox.hidden = false;
       rejectNotes.focus();
@@ -253,14 +278,25 @@
       modalStatus.textContent = 'Notes are required to return an article.';
       return;
     }
+    const version = modalVersion;
+    const id = currentId;
+    const hasEdits = !document.getElementById('edit-title').disabled;
+    if (hasEdits) {
+      const saved = await sendAction('/api/editor/articles/' + id,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectEdits()) }, 'Saved');
+      if (!saved) return;
+      setEditDisabled(true);
+    }
     const ok = await sendAction(
-      '/api/editor/articles/' + currentId + '/reject',
+      '/api/editor/articles/' + id + '/reject',
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: notes }) },
       'Returned to reporter'
     );
     if (ok) {
       closeModal();
       loadTable();
+    } else if (hasEdits && version === modalVersion) {
+      modalStatus.textContent = 'Changes saved. Return failed: ' + modalStatus.textContent;
     }
   }
 
@@ -312,6 +348,7 @@
   }
 
   function init() {
+    reviewRetry.addEventListener('click', function () { if (currentId) openModal(currentId); });
     statusFilter.addEventListener('change', handleFilterChange);
     prevBtn.addEventListener('click', handlePrev);
     nextBtn.addEventListener('click', handleNext);

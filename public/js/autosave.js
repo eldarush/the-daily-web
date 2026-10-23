@@ -15,6 +15,9 @@
   const rejectionNotes = document.getElementById('rejection-notes');
   const publishedBanner = document.getElementById('published-banner');
   const categorySelect = document.getElementById('article-category');
+  const listFeedback = document.getElementById('workspace-feedback');
+  const listMessage = document.getElementById('workspace-message');
+  const listRetry = document.getElementById('workspace-retry');
   const changesEl = document.getElementById('editor-changes');
   const changesList = document.getElementById('editor-changes-list');
   const CHANGE_LABELS = { title: 'Title', summary: 'Summary', category: 'Category', imageUrl: 'Image URL', content: 'Content' };
@@ -26,6 +29,9 @@
   let page = 1;
   let total = 0;
   let pageSize = 20;
+  let listVersion = 0;
+  let listLoading = false;
+  let retryPage = 1;
   const pending = new Map();
   const versions = new Map();
   let saving = Promise.resolve(true);
@@ -262,7 +268,6 @@
 
   async function handleNewArticle() {
     if (!(await flush())) return;
-    page = 1;
     setBadge('saving', 'Creating…');
     try {
       const res = await fetch('/api/reporter/articles', {
@@ -275,7 +280,7 @@
         return;
       }
       const created = await res.json();
-      await loadArticles();
+      await loadArticles(1);
       selectArticle(created.id);
     } catch (err) {
       setBadge('error', 'Could not create');
@@ -305,21 +310,45 @@
     }
   }
 
-  async function loadArticles() {
+  async function loadArticles(targetPage = page) {
+    const version = ++listVersion;
+    listLoading = true;
+    retryPage = targetPage;
+    document.getElementById('workspace-prev').disabled = true;
+    document.getElementById('workspace-next').disabled = true;
+    listFeedback.hidden = false;
+    listMessage.textContent = 'Loading articles…';
+    listRetry.hidden = true;
     try {
-      const res = await fetch('/api/reporter/articles?page=' + page);
-      if (!res.ok) return;
+      const res = await fetch('/api/reporter/articles?page=' + targetPage);
+      if (!res.ok) throw new Error('Could not load articles');
       const body = await res.json();
+      if (version !== listVersion) return;
+      // Commit the page and its contents together, only after a successful load.
+      page = targetPage;
       articles = body.articles || [];
       total = body.total;
       pageSize = body.pageSize;
       document.getElementById('workspace-page').textContent = 'Page ' + page + ' of ' + Math.max(1, Math.ceil(total / pageSize));
-      document.getElementById('workspace-prev').disabled = page <= 1;
-      document.getElementById('workspace-next').disabled = page * pageSize >= total;
+      listFeedback.hidden = true;
       renderList();
     } catch (err) {
-      listEl.innerHTML = '<li class="empty-hint">Could not load articles.</li>';
+      if (version !== listVersion) return;
+      listMessage.textContent = 'Could not load articles. Please retry.';
+      listRetry.hidden = false;
+    } finally {
+      if (version === listVersion) {
+        listLoading = false;
+        document.getElementById('workspace-prev').disabled = page <= 1;
+        document.getElementById('workspace-next').disabled = page * pageSize >= total;
+      }
     }
+  }
+
+  async function changePage(targetPage) {
+    if (listLoading) return;
+    if (!(await flush()) || listLoading) return;
+    await loadArticles(targetPage);
   }
 
   function init() {
@@ -336,12 +365,11 @@
       if (await flush()) window.location.assign(link.href);
     });
     ['prev', 'next'].forEach(function (direction) {
-      document.getElementById('workspace-' + direction).addEventListener('click', async function () {
-        if (!(await flush())) return;
-        page += direction === 'prev' ? -1 : 1;
-        await loadArticles();
+      document.getElementById('workspace-' + direction).addEventListener('click', function () {
+        changePage(page + (direction === 'prev' ? -1 : 1));
       });
     });
+    listRetry.addEventListener('click', function () { changePage(retryPage); });
     document.getElementById('new-article-btn').addEventListener('click', handleNewArticle);
     document.getElementById('submit-article-btn').addEventListener('click', handleSubmit);
     loadArticles();
