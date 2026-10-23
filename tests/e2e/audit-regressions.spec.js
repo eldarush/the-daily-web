@@ -100,7 +100,9 @@ test('revision review compares both category and image and safely handles long t
 
 test('analytics draws a single-hour point and clears stale results on pagination', async ({ page }) => {
   await Article.insertMany(Array.from({ length: 21 }, (_, i) => ({ title: 'Chart page fixture ' + i, summary: 'S', content: 'C', category: 'News', author: reporter._id, status: 'published', publishedAt: new Date(Date.now() - 3600000) })));
-  const a = await article({ title: 'Single hour regression', status: 'published', publishedAt: new Date() });
+  // dated ahead of everything else, so these two are always first and second in the picker
+  const a = await article({ title: 'Single hour regression', status: 'published', publishedAt: new Date(Date.now() + 120000) });
+  await article({ title: 'Single hour neighbour', status: 'published', publishedAt: new Date(Date.now() + 60000) });
   await ViewAnalytics.create({ article: a.id, timestampBucket: new Date('2026-10-22T10:00:00Z'), views: 103 });
   await login(page, editor);
   await page.goto('/editor/analytics');
@@ -115,7 +117,7 @@ test('analytics draws a single-hour point and clears stale results on pagination
   expect(painted).toBeGreaterThan(10);
   // next article has no views, so the old chart must go
   await page.locator('#articles-next').click();
-  await expect(page.locator('#article-select option:checked')).toContainText('Chart page fixture');
+  await expect(page.locator('#article-select option:checked')).toHaveText('Single hour neighbour');
   await expect(page.locator('#chart-summary')).toBeHidden();
   await expect(page.locator('canvas')).toBeHidden();
   await expect(page.locator('#chart-empty')).toBeVisible();
