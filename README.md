@@ -44,9 +44,13 @@ Run `npm run seed` again only when you want to reset the demonstration data.
 It deletes all articles, comments and view statistics, and recreates the five
 demo accounts. Other user accounts, sessions and guest-limit records are retained.
 
-The dataset contains 520 articles, four reporters, one editor, 120 comments,
-all publication states, pending revisions, multiple published updates and hourly
-view timelines. The script reports inserted counts and fails on insertion errors.
+The dataset contains 520 articles, four reporters, one editor and 120 comments.
+All 390 published articles have one to three editor-attributed update milestones,
+ordered between publication and the seed time, with hourly view timelines before
+and after each update. Fifteen published articles also have a separate pending
+revision for the diff demo. The 130 unpublished articles retain their draft,
+pending or rejected states without published-update milestones. The script
+reports inserted counts and fails on insertion errors.
 
 Demo accounts: `editor`, `reporter1`, `reporter2`, `reporter3`, `reporter4`.
 Their demo password is `password123`; these accounts are for local demonstration.
@@ -258,3 +262,21 @@ hosted database or the team's HTTPS setup. Verify those on the actual hosting
 system, and run the tested version on each presentation computer before submission.
 The load checks exercise thousands of stored articles and concurrent requests;
 they are not a claim about thousands of simultaneous deployed readers.
+
+## Contributors and recorded work
+
+This breakdown follows commit authors and the changes recorded in this repository.
+The areas overlap: implementation, integration, fixes, documentation and checks
+were shared across contributors rather than assigned exclusive owners.
+
+| Contributor in Git history | Recorded contributions | Example commits |
+| --- | --- | --- |
+| `eldarush` | Initial server and MongoDB setup; user/password models, authentication, sessions, role guards and user administration; server weather cache; operational logging; CI, automated checks, integration fixes and documentation. | [Server setup](https://github.com/eldarush/the-daily-web/commit/c02a1f3), [Request logging](https://github.com/eldarush/the-daily-web/commit/e083e63) |
+| `Segev` / `segevma2010` | Initial EJS templates and CSS layout; public newsfeed, live filters, pagination and reading history; proxy-session correction; browser request/state fixes; editor account-creation form and frontend regression checks. | [Newsfeed](https://github.com/eldarush/the-daily-web/commit/75b61e6), [Account form](https://github.com/eldarush/the-daily-web/commit/80dcd9c) |
+| `ofirhodara` | Article and hourly-view models; reporter/editor/analytics APIs; reporter workspace and autosave; editor hub, revision comparison and edit feedback; impact analytics and Chart.js; demo seeder, workflow checks and related explanations. | [Workflow APIs](https://github.com/eldarush/the-daily-web/commit/92fb1bb), [Demo seeder](https://github.com/eldarush/the-daily-web/commit/9b7e99c) |
+| `ofircohen911-spec` | Public article page, comments API/model, guest spam protection, article styling and browser behavior, with comment-related unit and browser checks. | [Article comments and spam protection](https://github.com/eldarush/the-daily-web/commit/384683b) |
+| `Hodara` (legacy author name) | Initial reporter-workspace and editor-management templates. | [Initial staff views](https://github.com/eldarush/the-daily-web/commit/218e005) |
+| `Ofir` (legacy author name) | Initial client weather-polling script. | [Weather polling](https://github.com/eldarush/the-daily-web/commit/02a1946) |
+
+Older `Hodara` and `Ofir` commits use placeholder email addresses. They are listed
+as recorded rather than assumed to belong to a particular current account.
