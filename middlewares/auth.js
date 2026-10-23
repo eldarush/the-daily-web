@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { wantsJson } = require('./wantsJson');
 
 // Runs on every request (registered in app.js). If the session has a user, reload that
 // user from MongoDB, so a changed role or a deleted account takes effect immediately
@@ -28,9 +29,7 @@ function requireAuth(req, res, next) {
     return next();
   }
 
-  const isApi = req.originalUrl?.startsWith('/api') || req.path?.startsWith('/api') || req.xhr || req.headers?.accept?.includes('application/json');
-
-  if (isApi) {
+  if (wantsJson(req)) {
     return res.status(401).json({ error: 'Authentication required. Please log in.' });
   }
 

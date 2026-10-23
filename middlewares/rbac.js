@@ -2,19 +2,16 @@
 // so every route in that router is protected.
 //   401 = not signed in (who are you?)   403 = signed in, but the wrong role (not allowed)
 // The role comes from req.currentUser, which loadCurrentUser just re-read from MongoDB.
+const { wantsJson } = require('./wantsJson');
+const { requireAuth } = require('./auth');
+
 function requireRole(role) {
   return function(req, res, next) {
-    const isApi = req.originalUrl?.startsWith('/api') || req.path?.startsWith('/api') || req.xhr || req.headers?.accept?.includes('application/json');
-
-    if (!req.currentUser) {
-      if (isApi) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-      return res.redirect('/login');
-    }
+    // guests get exactly what requireAuth gives them: 401 JSON, or a redirect to /login
+    if (!req.currentUser) return requireAuth(req, res, next);
 
     if (req.currentUser.role !== role) {
-      if (isApi) {
+      if (wantsJson(req)) {
         return res.status(403).json({ error: `Forbidden: Requires '${role}' role` });
       }
       return res.status(403).render('pages/error', {

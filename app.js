@@ -5,9 +5,10 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const { createSessionMiddleware } = require('./config/session');
-const { loadCurrentUser, requireAuth } = require('./middlewares/auth');
+const { loadCurrentUser } = require('./middlewares/auth');
 const { requireRole } = require('./middlewares/rbac');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { wantsJson } = require('./middlewares/wantsJson');
 const { operationalLogger } = require('./middlewares/operationalLogger');
 const Article = require('./models/Article');
 
@@ -63,8 +64,9 @@ app.use('/api', commentRoutes);
 
 // Web routes
 app.get('/login', (req, res) => {
-  if (req.session && req.session.user) {
-    if (req.session.user.role === 'editor') return res.redirect('/editor');
+  // req.currentUser is the user loadCurrentUser just re-read from MongoDB.
+  if (req.currentUser) {
+    if (req.currentUser.role === 'editor') return res.redirect('/editor');
     return res.redirect('/workspace');
   }
   res.render('pages/login', {
@@ -75,30 +77,19 @@ app.get('/login', (req, res) => {
 
 app.use('/', webRoutes);
 
-app.get('/workspace', requireAuth, (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.redirect('/login');
-  }
+// requireRole has already sent guests to /login and other roles to a 403 page.
+app.get('/workspace', requireRole('reporter'), (req, res) => {
   res.render('pages/workspace', {
     title: 'Reporter Workspace',
-    user: req.session.user,
+    user: req.currentUser,
     categories: Article.ARTICLE_CATEGORIES
   });
 });
 
 app.get('/editor', requireRole('editor'), (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.redirect('/login');
-  }
-  if (req.session.user.role !== 'editor') {
-    return res.status(403).render('pages/error', {
-      title: 'Access Denied',
-      message: 'Editor privileges required to view the editor hub.'
-    });
-  }
   res.render('pages/editor', {
     title: 'Editor Management Hub',
-    user: req.session.user,
+    user: req.currentUser,
     categories: Article.ARTICLE_CATEGORIES,
     statuses: Article.ARTICLE_STATUSES
   });
@@ -106,24 +97,15 @@ app.get('/editor', requireRole('editor'), (req, res) => {
 
 // Render the chart controls; the browser fetches data for the selected article.
 app.get('/editor/analytics', requireRole('editor'), (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.redirect('/login');
-  }
-  if (req.session.user.role !== 'editor') {
-    return res.status(403).render('pages/error', {
-      title: 'Access Denied',
-      message: 'Editor privileges required to view Impact Analytics.'
-    });
-  }
   res.render('pages/analytics', {
     title: 'Impact Analytics',
-    user: req.session.user
+    user: req.currentUser
   });
 });
 
 // 404 handler
 app.use((req, res, next) => {
-  if (req.xhr || req.path.startsWith('/api') || req.headers.accept?.includes('application/json')) {
+  if (wantsJson(req)) {
     return res.status(404).json({ error: 'Endpoint not found' });
   }
   res.status(404).render('pages/error', {

@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');
-const { requireAuth } = require('../../middlewares/auth');
 const { requireRole } = require('../../middlewares/rbac');
 
-router.use(requireAuth);
+// requireRole also turns guests away with 401, so no separate requireAuth is needed.
 router.use(requireRole('editor'));
 
 router.get('/', userController.listUsers);
