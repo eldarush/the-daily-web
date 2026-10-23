@@ -54,6 +54,41 @@ test('analytics selector reaches articles beyond first20 and draws their timelin
   await expect(page.locator('#articles-next')).toBeDisabled();
 });
 
+test('analytics Previous and Next step one article at a time and the chart follows', async ({ page }) => {
+  const login = await page.request.post('/api/auth/login', { data: { username: editor.username, password: 'password123' } });
+  expect(login.ok()).toBeTruthy();
+  await page.goto('/editor/analytics');
+  const chosen = page.locator('#article-select option:checked');
+  await expect(page.locator('#articles-previous')).toBeDisabled();
+  // nothing chosen yet: Next picks the newest article
+  await page.locator('#articles-next').click();
+  await expect(chosen).toHaveText(articles[0].title);
+  await expect(page.locator('#articles-previous')).toBeDisabled();
+  await page.locator('#articles-next').click();
+  await expect(chosen).toHaveText(articles[1].title);
+  await page.locator('#articles-previous').click();
+  await expect(chosen).toHaveText(articles[0].title);
+  // across the page boundary, both ways
+  await page.locator('#article-select').selectOption({ index: 20 });
+  await expect(chosen).toHaveText(articles[19].title);
+  await page.locator('#articles-next').click();
+  await expect(page.locator('#articles-page')).toHaveText('Page 2');
+  await expect(chosen).toHaveText(articles[20].title);
+  await page.locator('#articles-previous').click();
+  await expect(page.locator('#articles-page')).toHaveText('Page 1');
+  await expect(chosen).toHaveText(articles[19].title);
+  // only the last article has views
+  await page.locator('#articles-next').click();
+  await page.locator('#article-select').selectOption(articles[24].id);
+  await expect(page.locator('#sum-total')).toHaveText('15');
+  await page.locator('#articles-previous').click();
+  await expect(chosen).toHaveText(articles[23].title);
+  await expect(page.locator('#chart-summary')).toBeHidden();
+  await page.locator('#articles-next').click();
+  await expect(chosen).toHaveText(articles[24].title);
+  await expect(page.locator('#sum-total')).toHaveText('15');
+});
+
 test('weather expires on screen at the observation deadline', async ({ page }) => {
   const now = Date.now();
   await page.clock.install({ time: new Date(now) });
