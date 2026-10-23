@@ -98,6 +98,34 @@ test('revision review compares both category and image and safely handles long t
   await expect(page.locator('#diff-pending script')).toHaveCount(0);
 });
 
+test('review window keeps its buttons in view and says why Approve is off', async ({ page }) => {
+  const body = 'A long paragraph with useful words. '.repeat(100);
+  const revision = status => ({ hasUpdate: true, status, editorNotes: 'Needs sources', title: 'Review buttons ' + status, summary: 'Summary', content: body + ' revised', category: 'News', imageUrl: '/images/default-article.jpg' });
+  const rejected = await article({ title: 'Review buttons rejected', content: body, status: 'published', publishedAt: new Date(), pendingUpdate: revision('rejected') });
+  const pending = await article({ title: 'Review buttons pending', content: body, status: 'published', publishedAt: new Date(), pendingUpdate: revision('pending') });
+  const openReview = a => page.locator('tr', { hasText: a.title }).getByRole('button', { name: 'Review', exact: true }).click();
+
+  // a returned revision can't be approved, and the window says so
+  await review(page, rejected);
+  await expect(page.locator('#btn-approve')).toBeDisabled();
+  await expect(page.locator('#btn-approve')).toHaveCSS('opacity', '0.45');
+  await expect(page.locator('#modal-status')).toContainText('Returned to the reporter');
+  await expect(page.locator('#btn-approve')).toBeInViewport();
+  await page.locator('#modal-close').click();
+
+  // a submitted one: one click on Return opens the notes box without scrolling anywhere
+  await openReview(pending);
+  await expect(page.locator('#btn-reject')).toBeInViewport();
+  await page.locator('#btn-reject').click();
+  await expect(page.locator('#reject-box')).toBeInViewport();
+  await expect(page.locator('#btn-reject')).toBeInViewport();
+  await expect(page.locator('#modal-status')).toContainText('click again');
+  await page.locator('#reject-notes').fill('Please add sources');
+  await page.locator('#btn-reject').click();
+  await expect(page.locator('#review-modal')).toBeHidden();
+  expect((await Article.findById(pending.id)).pendingUpdate.status).toBe('rejected');
+});
+
 test('analytics draws a single-hour point and clears stale results on pagination', async ({ page }) => {
   await Article.insertMany(Array.from({ length: 21 }, (_, i) => ({ title: 'Chart page fixture ' + i, summary: 'S', content: 'C', category: 'News', author: reporter._id, status: 'published', publishedAt: new Date(Date.now() - 3600000) })));
   // dated ahead of everything else, so these two are always first and second in the picker
