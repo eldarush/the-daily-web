@@ -16,7 +16,9 @@
 }
 
 .article-list-panel {
+  /* min-width: 0 lets the panel stay 300px; without it long titles stretch it and squeeze the editor */
   flex: 0 0 300px;
+  min-width: 0;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -43,9 +45,9 @@
 
 .article-list-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -63,6 +65,7 @@
 }
 
 .item-title {
+  max-width: 100%;
   font-weight: 600;
   color: var(--color-text-main);
   overflow: hidden;
