@@ -42,10 +42,10 @@
     </div>
   </div>
 
-  <%# The drawing surface. width/height are its internal pixel size (900 × 380), which
-      impact-chart.js uses for every x/y calculation; CSS may display it at another size.
-      It starts empty: render() clears and redraws it each time an article is chosen.
-      The tooltip is a normal HTML box placed over the canvas on mouse move. %>
+  <%# Chart.js draws the chart here and sizes the canvas to its container.
+      It starts empty: render() in impact-chart.js builds a new chart each time an
+      article is chosen. The tooltip is a normal HTML box that the same script fills
+      and places over the canvas. %>
   <div class="canvas-wrap">
     <canvas id="impactChart" width="900" height="380"></canvas>
     <div id="chart-tooltip" class="chart-tooltip" hidden></div>
