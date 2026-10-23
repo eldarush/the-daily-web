@@ -15,7 +15,8 @@
     fills the article picker, fetches the chosen article's data and draws it on the canvas. %>
 
 <%# Article picker: filled from GET /api/analytics/articles, 20 published articles per page.
-    Each <option> value is an article _id; choosing one loads GET /api/analytics/:articleId. %>
+    Each <option> value is an article _id; choosing one loads GET /api/analytics/:articleId.
+    Previous/Next step one article at a time and load the neighbouring page at the ends. %>
 <div class="analytics-controls">
   <label for="article-select">Article</label>
   <select id="article-select"><option value="">Loading articles…</option></select>

@@ -43,11 +43,14 @@ test('analytics selector reaches articles beyond first20 and draws their timelin
   expect(login.ok()).toBeTruthy();
   await page.goto('/editor/analytics');
   await expect(page.locator('#article-select option')).toHaveCount(21);
+  await page.locator('#article-select').selectOption({ index: 20 });
   await page.locator('#articles-next').click();
   await expect(page.locator('#articles-page')).toHaveText('Page 2');
+  await expect(page.locator('#article-select option:checked')).toHaveText(articles[20].title);
   await page.locator('#article-select').selectOption(articles[24].id);
   await expect(page.locator('#chart-summary')).toBeVisible();
   await expect(page.locator('#sum-total')).toHaveText('15');
+  // last article overall, nothing after it
   await expect(page.locator('#articles-next')).toBeDisabled();
 });
 

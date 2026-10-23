@@ -113,6 +113,14 @@ test('analytics draws a single-hour point and clears stale results on pagination
     return count;
   });
   expect(painted).toBeGreaterThan(10);
+  // next article has no views, so the old chart must go
+  await page.locator('#articles-next').click();
+  await expect(page.locator('#article-select option:checked')).toContainText('Chart page fixture');
+  await expect(page.locator('#chart-summary')).toBeHidden();
+  await expect(page.locator('canvas')).toBeHidden();
+  await expect(page.locator('#chart-empty')).toBeVisible();
+  // stepping past the last article of page 1 loads page 2
+  await page.locator('#article-select').selectOption({ index: 20 });
   await page.locator('#articles-next').click();
   await expect(page.locator('#articles-page')).toHaveText('Page 2');
   await expect(page.locator('#chart-summary')).toBeHidden();
