@@ -25,9 +25,9 @@ function toHourBucket(date) {
 
 /**
  * Records a single view of an article. Called by the public article page when a
- * reader opens an article. Atomically increments the current hour's bucket and
- * the article's denormalized total. Never throws into the caller's render path —
- * a failed view count must not break serving the article.
+ * reader opens an article. The hourly bucket and article total use separate
+ * atomic increments, not a transaction. Count failures are logged without
+ * failing the article response.
  * @param {string} articleId - The viewed article's id.
  * @returns {Promise<void>}
  */
@@ -38,9 +38,7 @@ async function recordView(articleId) {
 
   const hourBucket = toHourBucket(new Date());
 
-  // This is our "group by": one counter document per (article, hour). upsert creates the
-  // hour's document on its first view; $inc adds 1 atomically, so concurrent views are never
-  // lost. Trade-off: we keep only hourly totals, not the exact time or who viewed.
+  // Store hourly totals rather than per-visitor events; $inc avoids read-modify-write races.
   try {
     await Promise.all([
       ViewAnalytics.findOneAndUpdate(
@@ -115,7 +113,7 @@ async function listPublishedArticles(req, res, next) {
 }
 
 // Editor tool: set one hour's view count directly (PUT /api/analytics/:articleId/buckets).
-// The article's total viewsCount is adjusted by the difference so both numbers stay in sync.
+// Adjust the article total separately by the difference from the previous bucket count.
 async function setViewBucket(req, res, next) {
   const { articleId } = req.params;
   const { time, views } = req.body;

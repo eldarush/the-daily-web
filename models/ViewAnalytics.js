@@ -3,11 +3,9 @@ const mongoose = require('mongoose');
 /**
  * Time-bucketed view records for Impact Analytics.
  *
- * Instead of storing one document per page view (which would not scale to the
- * thousands of concurrent readers the spec assumes), views are aggregated into
- * one document per article per hour. Recording a view is a single atomic
- * `$inc` upsert on the { article, timestampBucket } pair, so concurrent hits on
- * the same article in the same hour contend on one document without lost writes.
+ * One document per article per hour keeps storage proportional to article-hours
+ * rather than individual visits. The unique index identifies each bucket, and
+ * `$inc` updates its count without a separate read-modify-write step.
  */
 const viewAnalyticsSchema = new mongoose.Schema(
   {

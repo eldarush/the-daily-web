@@ -1,19 +1,5 @@
-/* Impact Analytics: pure-canvas time-series of hourly views with vertical
-   markers at each editor-update publication point. No charting library.
-
-   How the chart gets on the screen (in order):
-   1. views/pages/analytics.ejs has an empty <canvas id="impactChart"> and an
-      <select id="article-select">, then loads this script.
-   2. On DOMContentLoaded, init() wires the events and loadArticleOptions()
-      fills the dropdown from GET /api/analytics/articles (editors only).
-   3. When the editor picks an article, handleSelect() fetches
-      GET /api/analytics/:articleId → { timeline, milestones }.
-      timeline   = that article's hourly view counters (ViewAnalytics)
-      milestones = times of approved updates (Article.publishedUpdates)
-   4. render() clears the canvas, converts every time and view count into
-      pixel coordinates, then draws: axes → area + line → update markers.
-   5. Moving the mouse shows a tooltip for the nearest hour (handleMove).
-   The canvas never "knows" the article: it is wiped and redrawn on every pick. */
+/* Canvas chart of hourly views and approved-update milestones.
+   The article picker and chart data come from the editor-only analytics API. */
 (function () {
   'use strict';
 
@@ -25,9 +11,7 @@
   const COLOR_TEXT = '#718096';
   const COLOR_MILESTONE = '#dd6b20';
 
-  // The link between HTML and JS is the element id: id="impactChart" in analytics.ejs.
   const canvas = document.getElementById('impactChart');
-  // The 2D context is the "pen": every line, fill and label is drawn through ctx.
   const ctx = canvas.getContext('2d');
   const selectEl = document.getElementById('article-select');
   const previousEl = document.getElementById('articles-previous');
@@ -49,6 +33,7 @@
   }
 
   function resetChart() {
+    // A new selection or selector page invalidates earlier requests.
     requestNumber++;
     points = [];
     milestones = [];
@@ -170,9 +155,9 @@
     milestones = [];
     clear();
 
-    // No view counters yet (e.g. a brand-new article): show a message instead of an empty chart.
     const timeline = [];
     const hour = 60 * 60 * 1000;
+    // Add gap boundaries without allocating a point for every missing hour.
     (data.timeline || []).forEach(function (record) {
       const previous = timeline[timeline.length - 1];
       const time = new Date(record.time).getTime();
@@ -202,7 +187,7 @@
     let tMax = Math.max.apply(null, times);
     if (tMin === tMax) { tMin -= hour / 2; tMax += hour / 2; }
     const maxViews = Math.max(1, Math.max.apply(null, views)); // at least 1: never divide by 0
-    const span = tMax - tMin || 1; // one single hour → avoid dividing by 0
+    const span = tMax - tMin || 1;
 
     // Data → pixels.
     // x: the earliest time maps to the left edge of the plot, the latest to the right edge.
@@ -293,7 +278,7 @@
     let html = '<strong>' + point.views + ' views</strong><br>' + when;
     if (milestone) {
       // The note is typed by an editor, so it is escaped before going into innerHTML (no XSS).
-      html += '<div class="tooltip-milestone">✎ ' + escapeHtml(milestone.changelogNote || 'Editor update') + '</div>';
+      html += '<div class="tooltip-milestone">' + escapeHtml(milestone.changelogNote || 'Editor update') + '</div>';
     }
     tooltip.innerHTML = html;
     tooltip.hidden = false;
@@ -306,7 +291,6 @@
     tooltip.style.top = (screenY - rect.top) + 'px';
   }
 
-  // textContent stores the text as plain text; innerHTML then returns it with < > & escaped.
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
@@ -343,8 +327,8 @@
       selectEl.innerHTML = '<option value="">Select an article…</option>';
       list.forEach(function (a) {
         const opt = document.createElement('option');
-        opt.value = a._id; // the article id is what handleSelect sends to the server
-        opt.textContent = a.title; // textContent, not innerHTML: titles can't inject HTML
+        opt.value = a._id;
+        opt.textContent = a.title;
         selectEl.appendChild(opt);
       });
     } catch (err) {
@@ -355,10 +339,7 @@
     }
   }
 
-  // Runs when the editor picks an article: this is what makes it the RIGHT chart.
-  // The chosen article's _id goes into the URL, and the server returns only that
-  // article's data (analyticsController.getArticleAnalytics:
-  // ViewAnalytics.find({ article: articleId }) + the article's publishedUpdates).
+  // The API returns only the selected article's counters and update milestones.
   async function handleSelect() {
     const id = selectEl.value;
     resetChart();

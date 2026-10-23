@@ -7,6 +7,7 @@ function writeLog(event, fields) {
     fs.mkdirSync(directory, { recursive: true });
     fs.appendFileSync(path.join(directory, 'operations.jsonl'), JSON.stringify({ time: new Date().toISOString(), event, ...fields }) + '\n');
   } catch {
+    // Logging must not turn a completed database operation into a failed request.
     console.error('[Log] Could not persist operational event');
   }
 }

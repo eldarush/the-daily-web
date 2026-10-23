@@ -11,8 +11,7 @@ async function login(req, res, next) {
     }
 
     const user = await User.findOne({ username: username.trim() });
-    // bcrypt.compare runs inside comparePassword. The same message for "no such user"
-    // and "wrong password" so an attacker cannot learn which usernames exist.
+    // Return the same error message for missing accounts and incorrect passwords.
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
