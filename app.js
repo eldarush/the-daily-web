@@ -36,6 +36,8 @@ app.use('/api/articles/search', express.json({ limit: '1mb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+// the browser build of chart.js, straight from node_modules
+app.use('/vendor/chart.js', express.static(path.join(__dirname, 'node_modules/chart.js/dist')));
 
 // Order matters: the session must load before loadCurrentUser reads it,
 // and both run before any route, so every route knows who is calling.

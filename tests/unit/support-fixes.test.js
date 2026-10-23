@@ -201,3 +201,10 @@ test('analytics reset tolerates a bucket already removed by another reset', asyn
     expect(await ViewAnalytics.countDocuments({ article: article.id })).toBe(0);
   } finally { jest.restoreAllMocks(); }
 });
+
+test('the chart.js browser build is served from the vendor route', async () => {
+  const res = await request(app).get('/vendor/chart.js/chart.umd.js');
+  expect(res.status).toBe(200);
+  expect(res.headers['content-type']).toMatch(/javascript/);
+  expect(res.text).toContain('Chart.js');
+});
