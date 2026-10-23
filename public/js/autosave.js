@@ -157,7 +157,11 @@
   function readLocalBackup(id) {
     try {
       const raw = localStorage.getItem(LOCAL_PREFIX + id);
-      return raw ? JSON.parse(raw) : null;
+      const backup = raw ? JSON.parse(raw) : null;
+      if (!backup || !Number.isFinite(backup.stamp) || !backup.data ||
+          !['title', 'summary', 'content', 'category', 'imageUrl'].every(field => typeof backup.data[field] === 'string') ||
+          (backup.data.saveVersion !== undefined && (!Number.isSafeInteger(backup.data.saveVersion) || backup.data.saveVersion < 1))) return null;
+      return backup;
     } catch (err) {
       return null;
     }
@@ -295,6 +299,7 @@
   }
 
   function init() {
+    window.saveBeforeSignOut = flush;
     populateCategories();
     formEl.addEventListener('input', handleInput);
     formEl.addEventListener('submit', function (event) { event.preventDefault(); });

@@ -1,3 +1,5 @@
+const { writeLog } = require('../config/logger');
+
 function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
   let statusCode = err.statusCode || err.status || 500;
@@ -24,6 +26,7 @@ function errorHandler(err, req, res, next) {
     statusCode = 500;
     // Do not log request bodies, query values, credentials, or exception messages.
     console.error(`[${new Date().toISOString()}] Request failed`, { method: req.method, errorType: err.name || 'Error' });
+    writeLog('request.error', { method: req.method, errorType: err.name || 'Error', status: statusCode });
   }
 
   if (req.xhr || req.path?.startsWith('/api') || req.originalUrl?.startsWith('/api') || req.headers?.accept?.includes('application/json')) {
