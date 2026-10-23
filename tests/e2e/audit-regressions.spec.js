@@ -144,6 +144,37 @@ test('reporter editor gets the width, even next to long titles', async ({ page }
   expect((await page.locator('#site-sidebar').boundingBox()).y).toBeGreaterThan(editorPanel.y + editorPanel.height);
 });
 
+test('editor edits only submitted work, and the reporter sees those edits marked', async ({ page }) => {
+  const draft = await article({ title: 'Still with the reporter', status: 'draft' });
+  await review(page, draft);
+  await expect(page.locator('#btn-edit')).toBeDisabled();
+  await expect(page.locator('#modal-status')).toContainText('Approve, Return and Edit are off');
+  await page.locator('#modal-close').click();
+
+  const a = await article({ title: 'Bike lanes open', status: 'pending', content: 'Riders said the lanes feel safe and fast.' });
+  await review(page, a);
+  await expect(page.locator('#btn-edit')).toBeEnabled();
+  await page.locator('#btn-edit').click();
+  await page.locator('#edit-content').fill('Riders said the protected lanes feel safe.');
+  await page.locator('#btn-save-edit').click();
+  await expect.poll(async () => (await Article.findById(a.id)).content).toBe('Riders said the protected lanes feel safe.');
+  await page.request.post(`/api/editor/articles/${a.id}/reject`, { data: { notes: 'Add a quote' } });
+
+  await login(page, reporter);
+  await page.goto('/workspace');
+  await page.locator(`[data-id="${a.id}"]`).click();
+  const changes = page.locator('#editor-changes');
+  await expect(changes).toBeVisible();
+  await expect(changes.locator('.change-label')).toHaveText(['Content']);
+  await expect(changes.locator('ins.diff-add', { hasText: 'protected' })).toHaveCSS('font-weight', '700');
+  await expect(changes.locator('del.diff-del', { hasText: 'fast.' })).toBeVisible();
+  await expect(page.locator('#rejection-notes')).toHaveText('Add a quote');
+
+  // once resubmitted, the next review starts clean
+  await page.locator('#submit-article-btn').click();
+  await expect(changes).toBeHidden();
+});
+
 test('analytics draws a single-hour point and clears stale results on pagination', async ({ page }) => {
   await Article.insertMany(Array.from({ length: 21 }, (_, i) => ({ title: 'Chart page fixture ' + i, summary: 'S', content: 'C', category: 'News', author: reporter._id, status: 'published', publishedAt: new Date(Date.now() - 3600000) })));
   // dated ahead of everything else, so these two are always first and second in the picker
