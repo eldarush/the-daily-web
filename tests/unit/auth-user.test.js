@@ -412,6 +412,12 @@ describe('Authentication, User Management & Weather Service', () => {
       expect(res.text).toContain('Reporter Workspace');
     });
 
+    test('GET /workspace for editor returns 403, since every workspace API is reporter-only', async () => {
+      const res = await editorAgent.get('/workspace');
+      expect(res.status).toBe(403);
+      expect(res.text).toContain('Access Denied');
+    });
+
     test('GET /editor for unauthenticated redirects to /login', async () => {
       const res = await request(app).get('/editor');
       expect(res.status).toBe(302);

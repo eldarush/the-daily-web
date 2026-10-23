@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const { createSessionMiddleware } = require('./config/session');
-const { loadCurrentUser, requireAuth } = require('./middlewares/auth');
+const { loadCurrentUser } = require('./middlewares/auth');
 const { requireRole } = require('./middlewares/rbac');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { operationalLogger } = require('./middlewares/operationalLogger');
@@ -75,7 +75,7 @@ app.get('/login', (req, res) => {
 
 app.use('/', webRoutes);
 
-app.get('/workspace', requireAuth, (req, res) => {
+app.get('/workspace', requireRole('reporter'), (req, res) => {
   if (!req.session || !req.session.user) {
     return res.redirect('/login');
   }
