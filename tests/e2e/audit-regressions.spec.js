@@ -216,7 +216,19 @@ test('analytics shows zero-view hours between stored counters', async ({ page })
   await page.goto('/editor/analytics');
   await page.locator('#article-select').selectOption(a.id);
   await expect(page.locator('#sum-total')).toHaveText('20');
-  const rect = await page.locator('canvas').boundingBox();
-  await page.mouse.move(rect.x + rect.width * 464 / 900, rect.y + rect.height * 334 / 380);
-  await expect(page.locator('#chart-tooltip')).toContainText('0 views');
+  // The zero point sits near the bottom of the chart, which can be below the fold;
+  // bring it into view and ask Chart.js where the filled-in 11:00 point is drawn.
+  await expect(async () => {
+    const canvas = page.locator('canvas');
+    await canvas.scrollIntoViewIfNeeded();
+    const point = await canvas.evaluate(el => {
+      const chart = window.Chart.getChart(el);
+      const i = chart.data.datasets[0].data.findIndex(p => p.y === 0);
+      const { x, y } = chart.getDatasetMeta(0).data[i];
+      return { x, y };
+    });
+    const rect = await canvas.boundingBox();
+    await page.mouse.move(rect.x + point.x, rect.y + point.y);
+    await expect(page.locator('#chart-tooltip')).toContainText('0 views', { timeout: 1000 });
+  }).toPass();
 });
