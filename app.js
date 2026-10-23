@@ -8,6 +8,7 @@ const { createSessionMiddleware } = require('./config/session');
 const { loadCurrentUser } = require('./middlewares/auth');
 const { requireRole } = require('./middlewares/rbac');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { wantsJson } = require('./middlewares/wantsJson');
 const { operationalLogger } = require('./middlewares/operationalLogger');
 const Article = require('./models/Article');
 
@@ -104,7 +105,7 @@ app.get('/editor/analytics', requireRole('editor'), (req, res) => {
 
 // 404 handler
 app.use((req, res, next) => {
-  if (req.xhr || req.path.startsWith('/api') || req.headers.accept?.includes('application/json')) {
+  if (wantsJson(req)) {
     return res.status(404).json({ error: 'Endpoint not found' });
   }
   res.status(404).render('pages/error', {
