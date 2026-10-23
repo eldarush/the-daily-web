@@ -18,6 +18,9 @@
   const nextEl = document.getElementById('articles-next');
   const pageEl = document.getElementById('articles-page');
   let articlePage = 1;
+  // the articles in the picker now, and whether another page follows
+  let articleList = [];
+  let hasMorePages = false;
   const tooltip = document.getElementById('chart-tooltip');
   const emptyEl = document.getElementById('chart-empty');
   const summaryEl = document.getElementById('chart-summary');
@@ -303,10 +306,13 @@
 
   // Fills the dropdown with published articles, 20 per page.
   // Server: routes/api/analyticsRoutes.js → analyticsController.listPublishedArticles.
-  async function loadArticleOptions() {
+  // pick ('first' or 'last') also chooses that article once the page is loaded.
+  async function loadArticleOptions(pick) {
     resetChart();
     const currentRequest = requestNumber;
     selectEl.disabled = true;
+    articleList = [];
+    hasMorePages = false;
     try {
       const res = await fetch('/api/analytics/articles?page=' + articlePage);
       if (currentRequest !== requestNumber) return;
@@ -316,16 +322,17 @@
       }
       const body = await res.json();
       if (currentRequest !== requestNumber) return;
-      const list = body.articles || [];
+      articleList = body.articles || [];
+      hasMorePages = Boolean(body.hasMore);
       pageEl.textContent = 'Page ' + articlePage;
       previousEl.disabled = articlePage === 1;
       nextEl.disabled = !body.hasMore;
-      if (list.length === 0) {
+      if (articleList.length === 0) {
         selectEl.innerHTML = '<option value="">No published articles</option>';
         return;
       }
       selectEl.innerHTML = '<option value="">Select an article…</option>';
-      list.forEach(function (a) {
+      articleList.forEach(function (a) {
         const opt = document.createElement('option');
         opt.value = a._id;
         opt.textContent = a.title;
@@ -337,6 +344,17 @@
     } finally {
       if (currentRequest === requestNumber) selectEl.disabled = false;
     }
+    // after the finally block: handleSelect bumps requestNumber, which would
+    // stop the finally from enabling the dropdown
+    if (pick && articleList.length > 0 && currentRequest === requestNumber) {
+      await chooseIndex(pick === 'last' ? articleList.length - 1 : 0);
+    }
+  }
+
+  // option 0 is the "Select an article…" placeholder
+  function chooseIndex(index) {
+    selectEl.selectedIndex = index + 1;
+    return handleSelect();
   }
 
   // The API returns only the selected article's counters and update milestones.
