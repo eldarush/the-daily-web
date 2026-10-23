@@ -56,6 +56,27 @@ describe('weather freshness and request sharing', () => {
   beforeEach(() => { controller = require('../../controllers/weatherController'); controller.resetWeatherCache(); });
   afterEach(() => { global.fetch = realFetch; controller.resetWeatherCache(); jest.restoreAllMocks(); });
 
+  test('missing weather settings use the default city and matching coordinates', async () => {
+    const keys = ['WEATHER_CITY', 'WEATHER_LATITUDE', 'WEATHER_LONGITUDE'];
+    const previous = keys.map(key => process.env[key]);
+    try {
+      keys.forEach(key => { delete process.env[key]; });
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => reply() });
+      const res = response();
+      await controller.getWeather({}, res);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ city: 'Tel Aviv', temp: 22 }));
+      const url = new URL(global.fetch.mock.calls[0][0]);
+      expect(url.searchParams.get('latitude')).toBe('32.0853');
+      expect(url.searchParams.get('longitude')).toBe('34.7818');
+    } finally {
+      keys.forEach((key, index) => {
+        if (previous[index] === undefined) delete process.env[key];
+        else process.env[key] = previous[index];
+      });
+    }
+  });
+
   test('cold concurrent callers share one provider request and warm callers keep the fetch timestamp', async () => {
     global.fetch = jest.fn().mockImplementation(async () => ({ ok: true, json: async () => reply() }));
     const responses = Array.from({ length: 20 }, response);

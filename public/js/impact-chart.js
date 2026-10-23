@@ -134,6 +134,7 @@
   // Main drawing step, called with the JSON from GET /api/analytics/:articleId.
   function render(data) {
     const points = withGapZeros(data.timeline || []);
+    emptyEl.textContent = 'No view data yet for this article.';
     if (points.length === 0) {
       emptyEl.hidden = false;
       canvas.hidden = true;
@@ -141,7 +142,6 @@
       return;
     }
     emptyEl.hidden = true;
-    emptyEl.textContent = 'No view data yet for this article.';
     canvas.hidden = false;
 
     updates = (data.milestones || []).map(function (m) {
@@ -318,6 +318,8 @@
     resetChart();
     const currentRequest = requestNumber;
     if (!id) return;
+    emptyEl.textContent = 'Loading statistics…';
+    emptyEl.hidden = false;
     try {
       const res = await fetch('/api/analytics/' + id);
       if (!res.ok) throw new Error('Could not load statistics');
