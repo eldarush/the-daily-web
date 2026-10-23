@@ -18,6 +18,9 @@
   const nextEl = document.getElementById('articles-next');
   const pageEl = document.getElementById('articles-page');
   let articlePage = 1;
+  // the articles in the picker now, and whether another page follows
+  let articleList = [];
+  let hasMorePages = false;
   const tooltip = document.getElementById('chart-tooltip');
   const emptyEl = document.getElementById('chart-empty');
   const summaryEl = document.getElementById('chart-summary');
@@ -303,10 +306,16 @@
 
   // Fills the dropdown with published articles, 20 per page.
   // Server: routes/api/analyticsRoutes.js → analyticsController.listPublishedArticles.
-  async function loadArticleOptions() {
+  // pick ('first' or 'last') also chooses that article once the page is loaded.
+  async function loadArticleOptions(pick) {
     resetChart();
     const currentRequest = requestNumber;
     selectEl.disabled = true;
+    // no double clicks while a page loads
+    previousEl.disabled = true;
+    nextEl.disabled = true;
+    articleList = [];
+    hasMorePages = false;
     try {
       const res = await fetch('/api/analytics/articles?page=' + articlePage);
       if (currentRequest !== requestNumber) return;
@@ -316,16 +325,15 @@
       }
       const body = await res.json();
       if (currentRequest !== requestNumber) return;
-      const list = body.articles || [];
+      articleList = body.articles || [];
+      hasMorePages = Boolean(body.hasMore);
       pageEl.textContent = 'Page ' + articlePage;
-      previousEl.disabled = articlePage === 1;
-      nextEl.disabled = !body.hasMore;
-      if (list.length === 0) {
+      if (articleList.length === 0) {
         selectEl.innerHTML = '<option value="">No published articles</option>';
         return;
       }
       selectEl.innerHTML = '<option value="">Select an article…</option>';
-      list.forEach(function (a) {
+      articleList.forEach(function (a) {
         const opt = document.createElement('option');
         opt.value = a._id;
         opt.textContent = a.title;
@@ -335,13 +343,59 @@
       if (currentRequest !== requestNumber) return;
       selectEl.innerHTML = '<option value="">Could not load</option>';
     } finally {
-      if (currentRequest === requestNumber) selectEl.disabled = false;
+      if (currentRequest === requestNumber) {
+        selectEl.disabled = false;
+        updateStepButtons();
+      }
+    }
+    // after the finally block: handleSelect bumps requestNumber, which would
+    // stop the finally from enabling the dropdown
+    if (pick && articleList.length > 0 && currentRequest === requestNumber) {
+      await chooseIndex(pick === 'last' ? articleList.length - 1 : 0);
+    }
+  }
+
+  // option 0 is the "Select an article…" placeholder
+  function chooseIndex(index) {
+    selectEl.selectedIndex = index + 1;
+    return handleSelect();
+  }
+
+  // -1 when nothing is chosen yet
+  function currentIndex() {
+    return selectEl.selectedIndex - 1;
+  }
+
+  // off at the very first and the very last article
+  function updateStepButtons() {
+    const index = currentIndex();
+    previousEl.disabled = articlePage === 1 && index <= 0;
+    nextEl.disabled = !(index < articleList.length - 1 || hasMorePages);
+  }
+
+  // Moves one article. Past the end of the 20 shown it loads the next or
+  // previous page and picks its first or last article.
+  function stepArticle(direction) {
+    const index = currentIndex();
+    if (direction > 0) {
+      if (index < articleList.length - 1) return chooseIndex(index + 1);
+      if (hasMorePages) {
+        articlePage++;
+        return loadArticleOptions('first');
+      }
+    } else {
+      if (index > 0) return chooseIndex(index - 1);
+      if (articlePage > 1) {
+        articlePage--;
+        return loadArticleOptions('last');
+      }
     }
   }
 
   // The API returns only the selected article's counters and update milestones.
   async function handleSelect() {
     const id = selectEl.value;
+    updateStepButtons();
     resetChart();
     const currentRequest = requestNumber;
     if (!id) return;
@@ -364,8 +418,8 @@
   // Wires every event once, then loads the first page of articles.
   function init() {
     selectEl.addEventListener('change', handleSelect);
-    previousEl.addEventListener('click', function () { articlePage--; loadArticleOptions(); });
-    nextEl.addEventListener('click', function () { articlePage++; loadArticleOptions(); });
+    previousEl.addEventListener('click', function () { stepArticle(-1); });
+    nextEl.addEventListener('click', function () { stepArticle(1); });
     canvas.addEventListener('mousemove', handleMove);
     canvas.addEventListener('mouseleave', handleLeave);
     loadArticleOptions();
