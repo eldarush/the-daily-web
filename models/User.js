@@ -47,6 +47,8 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 // Safe object representation excluding the password hash
+// Both create/update responses call this; listing queries exclude the hash
+// separately with select('-password'). Keep new public fields consistent here.
 userSchema.methods.toSafeObject = function() {
   return {
     id: this._id,

@@ -129,6 +129,8 @@
 }
 
 /* Category and image URL share one row; they stack again on narrow screens. */
+/* Zero-minimum grid tracks let long category/image inputs shrink within the
+   editor rather than imposing their intrinsic width on the workspace. */
 .field-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);

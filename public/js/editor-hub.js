@@ -36,6 +36,8 @@
   // Closed reviews and superseded table requests must ignore late responses.
   let modalVersion = 0;
   let tableVersion = 0;
+  // Separate from fetch versions: at most one mutation is active for a review.
+  // Invalidating a modal response does not cancel a server write already sent.
   let actionVersion = null;
 
   function escapeHtml(str) {
@@ -128,6 +130,8 @@
     document.getElementById('edit-content').value = live.content || '';
   }
 
+  // Compare all editable fields, including category/image URL. A body-only diff
+  // would hide changes that approval also promotes to the public article.
   function combined(fields) {
     return ['Title: ' + fields.title, 'Summary: ' + fields.summary,
       'Category: ' + fields.category, 'Image URL: ' + (fields.imageUrl || '(none)'),
@@ -246,6 +250,8 @@
     }
   }
 
+  // Persist an enabled edit form before publication; approval itself reads the
+  // saved database candidate and does not receive these displayed form values.
   async function handleApprove() {
     if (actionVersion === modalVersion) return;
     if (!document.getElementById('edit-title').disabled) {
@@ -280,6 +286,8 @@
     }
     const version = modalVersion;
     const id = currentId;
+    // Save and return are separate requests: if only the return fails, keep the
+    // distinction visible rather than implying the editor changes were lost.
     const hasEdits = !document.getElementById('edit-title').disabled;
     if (hasEdits) {
       const saved = await sendAction('/api/editor/articles/' + id,

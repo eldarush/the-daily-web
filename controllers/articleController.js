@@ -26,6 +26,8 @@ exports.renderArticlePage = async (req, res, next) => {
             req.session.commentDevice = true;
             await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
         }
+        // The session marker establishes a guest identity; the separate signed
+        // device cookie is issued by the limiter when a comment is attempted.
         // Every page load counts as one view (a refresh counts again; there is no per-visitor dedupe).
         await recordView(article._id);
 

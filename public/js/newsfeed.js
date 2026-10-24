@@ -1,4 +1,6 @@
 (function () {
+  // Read history is a preference in this browser/origin, independent of login
+  // and of the server's page-load counters. It never authorizes private content.
   const STORAGE_KEY = 'the_daily_web_viewed_ids';
 
   function getViewedIds() {
@@ -103,6 +105,8 @@
     };
     let url = '/api/articles?' + new URLSearchParams(query);
     let options = {};
+    // POST transports a potentially large ID list; the endpoint is read-only
+    // and uses the same string-valued filter contract as the GET query.
     if (readingFilter.value !== 'all') {
       query.viewedIds = getViewedIds().join(',');
       url = '/api/articles/search';
@@ -120,6 +124,8 @@
       // A newer filter request takes priority over a slower, older response.
       if (currentRequest !== requestNumber) return;
       data.articles.forEach(article => grid.appendChild(createCard(article)));
+      // Commit the page only after success so Retry requests the missing batch
+      // instead of skipping it. Stale responses return before this assignment.
       state.page = nextPage;
       state.hasMore = data.hasMore;
       status.textContent = data.total + ' articles · ' + grid.children.length + ' shown';
@@ -179,6 +185,8 @@
     }
   }
   window.addEventListener('pageshow', refreshReadingStatus);
+  // storage fires in other same-origin tabs; pageshow covers returning to this
+  // page, including a history-cache restore after an article visit.
   window.addEventListener('storage', event => {
     if (event.key === STORAGE_KEY || event.key === null) refreshReadingStatus();
   });

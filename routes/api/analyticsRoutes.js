@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(requireRole('editor'));
 
 // Used by the chart page (public/js/impact-chart.js):
+// Keep this literal route before /:articleId, or "articles" becomes an ID.
 router.get('/articles', listPublishedArticles); // fills the article picker
 router.get('/:articleId', getArticleAnalytics); // the data for one article's chart
 // Editor tools to correct or reset the stored counters (not used by the chart page):

@@ -79,6 +79,8 @@
     font-size: 1.1rem;
     line-height: 1.8;
     color: var(--color-text-main);
+    /* Content is escaped plain text; preserve authored paragraphs without
+       interpreting the article body as HTML. */
     white-space: pre-wrap;
     overflow-wrap: break-word;
 }
@@ -194,6 +196,7 @@
 
 .comment-content {
     color: var(--color-text-main);
+    /* Comments are escaped plain text; preserve line breaks in comment text. */
     white-space: pre-wrap;
     overflow-wrap: break-word;
 }

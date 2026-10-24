@@ -1,3 +1,5 @@
+/* Both initial EJS cards and Ajax-cloned cards share this stylesheet and the
+   feed-card partial. The hidden states are toggled by newsfeed.js. */
 .feed-page [hidden] {
   display: none;
 }

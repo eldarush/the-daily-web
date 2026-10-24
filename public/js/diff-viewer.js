@@ -28,6 +28,8 @@
     });
     for (let i = a.length - 1; i >= 0; i--) {
       for (let j = b.length - 1; j >= 0; j--) {
+        // Equal tokens extend the diagonal subsequence; otherwise keep the
+        // longer result after skipping either token. Time/space are O(m*n).
         table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
       }
     }
@@ -43,7 +45,8 @@
   function render(oldText, newText) {
     const a = tokenize(oldText);
     const b = tokenize(newText);
-    // Large articles use a complete escaped comparison without the quadratic word table.
+    // Budget uses token-pairs, not character count. The fallback keeps ALL text
+    // but gives up fine word matching; escaping still precedes our ins/del tags.
     if (a.length * b.length > 250000) {
       const removed = '<del class="diff-del">' + escapeHtml(oldText) + '</del>';
       const added = '<ins class="diff-add">' + escapeHtml(newText) + '</ins>';

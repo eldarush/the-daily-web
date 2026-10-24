@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+/** Reuse the open Mongoose connection; server.js waits for this before listening. */
 async function connectDB() {
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/the_daily_web';
   

@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+// authorName is a display snapshot; user is an optional account reference. Public
+// responses project away userIp/user even though this schema retains them.
 const commentSchema = new mongoose.Schema({
     article: {
         type: mongoose.Schema.Types.ObjectId,

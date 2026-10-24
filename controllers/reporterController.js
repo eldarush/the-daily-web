@@ -152,10 +152,15 @@ async function autosaveArticle(req, res, next) {
       return res.status(400).json({ error: 'Cannot edit an article that is awaiting approval' });
     }
 
+    // updateOne does not run document save() middleware; validate the assembled
+    // main/staged candidate before building its field-limited database update.
     await article.validate();
     // Optimistic concurrency: the browser numbers its saves (saveVersion). The update only
     // matches if the stored version is not newer, so a slow, older save arriving late can't
     // overwrite newer text. No match → 409 Conflict, and the page asks the user to reload.
+    // Equal versions also match ($lte), so this is not a strict compare-and-swap
+    // or a merge between two independently editing clients. The state predicates
+    // additionally reject writes when the observed review state has changed.
     const filter = {
       _id: article._id, status: article.status,
       $or: [{ saveVersion: { $lte: version } }, { saveVersion: { $exists: false } }]
@@ -189,6 +194,8 @@ async function submitArticle(req, res, next) {
       return res.status(error.status).json({ error: error.message });
     }
 
+    // Submit reads the last server-saved candidate. The workspace flushes before
+    // calling this endpoint; direct API clients must save their edits first too.
     const candidate = article.status === 'published' ? article.pendingUpdate : article;
     if (!Article.isComplete(candidate)) {
       return res.status(400).json({ error: 'Title, summary, content and a valid category are required before submission' });

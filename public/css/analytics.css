@@ -46,6 +46,8 @@
 .summary-value { font-size: 1.6rem; font-weight: 700; color: var(--color-primary); }
 .summary-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
 
+/* Tooltip coordinates are canvas-relative; this wrapper anchors its absolute
+   positioning while Chart.js controls the responsive drawing size. */
 .canvas-wrap {
   position: relative;
   width: 100%;

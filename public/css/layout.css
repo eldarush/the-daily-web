@@ -1,4 +1,6 @@
 /* Reset & Base Styles */
+/* Script-controlled loading/error/panel states must beat component display
+   rules, including flex/grid. Keep this invariant when adding new components. */
 [hidden] { display: none !important; }
 
 * {

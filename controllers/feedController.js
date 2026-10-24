@@ -10,7 +10,9 @@ function badRequest(message) {
 }
 
 // Builds the public feed query: validate the filters, build a MongoDB filter object,
-// then fetch one page of 20. Used by GET/POST /api/articles and the home page.
+// then fetch one page of 20. Used by GET /api/articles, read-only POST
+// /api/articles/search and the home page. JSON search values follow the same
+// string contract as query parameters, including page and limit.
 async function loadFeed(query) {
   if (Array.isArray(query)) badRequest('Filters must be a JSON object.');
   const {
@@ -38,6 +40,7 @@ async function loadFeed(query) {
   if (search.trim()) {
     // Case-insensitive search in title OR summary.
     // Search user text literally, even when it contains regex characters.
+    // This path uses literal regex matching, not the schema's $text index.
     const text = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     filter.$or = [
       { title: { $regex: text, $options: 'i' } },
@@ -51,7 +54,9 @@ async function loadFeed(query) {
     filter._id = viewedFilter === 'viewed' ? { $in: ids } : { $nin: ids };
   }
 
-  // The ID breaks ties so consecutive pages have a consistent order.
+  // The ID breaks ties within the current result set. Offset pages are not a
+  // frozen snapshot: new publications or view increments can move records
+  // between requests, even with this deterministic tie-breaker.
   const order = sort === 'popularity'
     ? { viewsCount: -1, publishedAt: -1, _id: -1 }
     : { publishedAt: -1, _id: -1 };

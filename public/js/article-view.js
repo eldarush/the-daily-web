@@ -18,6 +18,8 @@ if (articleImage) {
 const commentContent = document.getElementById('comment-content');
 const commentsList = document.getElementById('comments-list');
 const commentMessage = document.getElementById('comment-message');
+// This lock prevents accidental double posts in this form. The shared server
+// limiter, not this flag, enforces the guest budget across requests and tabs.
 let postingComment = false;
 
 commentForm.addEventListener('submit', async (event) => {
@@ -92,6 +94,8 @@ commentForm.addEventListener('submit', async (event) => {
                 new Date(comment.createdAt).toLocaleString();
             newComment.querySelector('.comment-content').textContent = comment.content;
 
+            // Insert only the server-confirmed public projection; do not echo
+            // unsaved form content or expose stored IP/account metadata.
             commentsList.prepend(newComment);
 
             commentContent.value = '';

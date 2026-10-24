@@ -14,6 +14,8 @@ router.use(requireRole('reporter'));
 
 router.get('/articles', getReporterArticles);
 router.post('/articles', createArticle);
+// Role checks apply here; ownership, editable state and save ordering are checked
+// in reporterController. Submission uses the saved article, not a new text payload.
 router.put('/articles/:id/autosave', autosaveArticle);
 router.post('/articles/:id/submit', submitArticle);
 

@@ -5,6 +5,8 @@ const commentController = require('../../controllers/commentController');
 const {guestCommentLimiter} = require('../../middlewares/rateLimiter');
 const {requireRole} = require('../../middlewares/rbac');
 
+// Reject missing/private articles and malformed text before reserving a guest
+// attempt. Moving the limiter first would charge invalid submissions too.
 router.post(
     '/comments',
     commentController.validatePublicArticle,

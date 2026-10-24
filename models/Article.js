@@ -24,6 +24,7 @@ const ARTICLE_STATUSES = ['draft', 'pending', 'published', 'rejected'];
  */
 const pendingUpdateSchema = new mongoose.Schema(
   {
+    // hasUpdate marks a real proposal; the default draft status alone does not.
     hasUpdate: { type: Boolean, default: false },
     status: { type: String, enum: ['draft', 'pending', 'rejected'], default: 'draft' },
     editorNotes: { type: String, default: '' },
@@ -114,7 +115,8 @@ const articleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Full-text search across the primary editorial fields (title is the central field).
+// Available full-text index. The current public search uses escaped title/summary
+// regexes instead; declaring this index does not make those queries $text queries.
 articleSchema.index({ title: 'text', summary: 'text', content: 'text' });
 
 // Indexes for the public feed's status/category filters and date/popularity sorts.
@@ -129,6 +131,8 @@ module.exports = Article;
 module.exports.ARTICLE_CATEGORIES = ARTICLE_CATEGORIES;
 module.exports.ARTICLE_STATUSES = ARTICLE_STATUSES;
 
+// Submission/publication require nonblank content; draft persistence deliberately
+// allows incomplete text so autosave can retain work before it is ready to review.
 module.exports.isComplete = function (fields) {
   return ['title', 'summary', 'content'].every(key => typeof fields[key] === 'string' && fields[key].trim())
     && ARTICLE_CATEGORIES.includes(fields.category);

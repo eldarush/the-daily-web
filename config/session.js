@@ -24,6 +24,9 @@ function createSessionMiddleware() {
     autoRemove: 'native'
   });
 
+  // Store expiration and browser retention are different settings: the cookie
+  // below lasts one day. A restart can reuse a valid Mongo-backed session only
+  // while the browser retains its ID and the signing secret remains unchanged.
   return session({
     secret: secret,
     resave: false,

@@ -40,6 +40,9 @@ async function recordView(articleId) {
 
   // Store hourly totals rather than per-visitor events; $inc avoids read-modify-write races.
   try {
+    // These two writes may succeed independently. The article total supports
+    // popularity sorting; hourly buckets support the chart. Neither counts
+    // unique people, and a partial failure can leave their totals different.
     await Promise.all([
       ViewAnalytics.findOneAndUpdate(
         { article: articleId, timestampBucket: hourBucket },
@@ -129,6 +132,9 @@ async function setViewBucket(req, res, next) {
     if (!await Article.exists({ _id: articleId })) {
       return res.status(404).json({ error: 'Article not found' });
     }
+    // Return the OLD bucket so the article counter changes by the difference,
+    // not by the whole replacement value. This is an API-only editor tool; the
+    // two writes are not a transaction with concurrent visits or corrections.
     const previous = await ViewAnalytics.findOneAndUpdate(
       { article: articleId, timestampBucket: date }, { $set: { views } },
       { upsert: true, new: false, runValidators: true }
@@ -147,6 +153,9 @@ async function resetArticleAnalytics(req, res, next) {
   try {
     const article = await Article.findById(articleId);
     if (!article) return res.status(404).json({ error: 'Article not found' });
+    // Capture IDs, then count only buckets actually deleted. New buckets created
+    // during the reset may remain; resetting statistics does not remove the
+    // article or its approved-update milestones.
     const records = await ViewAnalytics.find({ article: articleId }).select('_id');
     let removedViews = 0;
     for (const record of records) {

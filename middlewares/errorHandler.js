@@ -2,6 +2,8 @@ const { writeLog } = require('../config/logger');
 const { wantsJson } = require('./wantsJson');
 
 function errorHandler(err, req, res, next) {
+  // Do not attempt a second JSON/page response after headers have been sent;
+  // Express must finish handling that already-started response.
   if (res.headersSent) return next(err);
   let statusCode = err.statusCode || err.status || 500;
   let message = 'An unexpected internal error occurred.';

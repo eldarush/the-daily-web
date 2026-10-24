@@ -16,6 +16,8 @@
   const cancel = document.getElementById('cancel-create-user');
   let pending = false;
 
+  // Toggling/canceling is local UI work, not account deletion. Do not close or
+  // reset a form whose submitted credentials are still in flight.
   function closeForm() {
     if (pending) return;
     form.reset();
@@ -88,6 +90,8 @@
         body: JSON.stringify(data)
       });
       const body = await response.json().catch(function () { return {}; });
+      // A long-open page can outlive its login or editor role. Clear the
+      // password on these failures and let the server remain authoritative.
       if (response.status === 401 || response.status === 403) {
         password.value = '';
         signIn.hidden = response.status !== 401;
