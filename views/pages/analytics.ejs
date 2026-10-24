@@ -1,7 +1,4 @@
-<%#
-   This is the chart shell, not an embedded analytics dataset. The guarded
-   picker and timeline APIs load independently after the scripts are ready.
-%><%- include('../partials/header') %>
+<%- include('../partials/header') %>
 
 <link rel="stylesheet" href="/css/analytics.css">
 
@@ -13,13 +10,6 @@
   <a href="/editor" class="btn btn-outline">Back to Hub</a>
 </div>
 
-<%# Impact Analytics page. The server only sends this empty layout (app.js, GET /editor/analytics).
-    public/js/impact-chart.js (loaded at the bottom) finds the elements below by their ids,
-    fills the article picker, fetches the chosen article's data and draws it on the canvas. %>
-
-<%# Article picker: filled from GET /api/analytics/articles, 20 published articles per page.
-    Each <option> value is an article _id; choosing one loads GET /api/analytics/:articleId.
-    Previous/Next step one article at a time and load the neighbouring page at the ends. %>
 <div class="analytics-controls">
   <label for="article-select">Article</label>
   <select id="article-select"><option value="">Loading articles…</option></select>
@@ -29,7 +19,6 @@
 </div>
 
 <div class="chart-card">
-  <%# Three numbers above the chart, filled by renderSummary(): total views, approved updates, busiest hour. %>
   <div class="chart-summary" id="chart-summary" hidden>
     <div class="summary-tile">
       <span class="summary-value" id="sum-total">0</span>
@@ -45,15 +34,10 @@
     </div>
   </div>
 
-  <%# Chart.js draws the chart here and sizes the canvas to its container.
-      It starts empty: render() in impact-chart.js builds a new chart each time an
-      article is chosen. The tooltip is a normal HTML box that the same script fills
-      and places over the canvas. %>
   <div class="canvas-wrap">
     <canvas id="impactChart" width="900" height="380"></canvas>
     <div id="chart-tooltip" class="chart-tooltip" hidden></div>
   </div>
-  <%# Shown instead of the canvas when the article has no view counters yet. %>
   <p id="chart-empty" class="empty-hint" hidden>No view data yet for this article.</p>
   <div class="chart-legend">
     <span class="legend-item"><span class="legend-swatch line"></span> Hourly views</span>
@@ -61,8 +45,6 @@
   </div>
 </div>
 
-<%# Loaded last, so every element above already exists when the script runs.
-    chart.js comes first: impact-chart.js uses its global Chart. %>
 <script src="/vendor/chart.js/chart.umd.js"></script>
 <script src="/js/impact-chart.js"></script>
 
