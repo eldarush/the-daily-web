@@ -1,3 +1,4 @@
+const { writeLog } = require('../config/logger');
 const CACHE_TTL_MS = 15 * 60 * 1000;
 // These module variables belong to one Node process, not MongoDB or all replicas.
 // lastFetched measures our refresh; observedAt measures the provider observation.
@@ -74,7 +75,7 @@ async function getWeather(req, res) {
     const data = await inFlight;
     return res.status(200).json({ ...data, cached: false });
   } catch (err) {
-    console.error('Weather refresh failed:', err.message);
+    writeLog('weather.refresh.failed', { level: 'warn', errorType: err.name || 'Error' });
     return res.status(503).json({ error: 'Weather unavailable' });
   }
 }

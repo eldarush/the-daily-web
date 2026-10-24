@@ -4,7 +4,10 @@ const { wantsJson } = require('./wantsJson');
 function errorHandler(err, req, res, next) {
   // Do not attempt a second JSON/page response after headers have been sent;
   // Express must finish handling that already-started response.
-  if (res.headersSent) return next(err);
+  if (res.headersSent) {
+    writeLog('request.error', { level: 'error', method: req.method, errorType: err.name || 'Error' });
+    return next(err);
+  }
   let statusCode = err.statusCode || err.status || 500;
   let message = 'An unexpected internal error occurred.';
 
@@ -28,7 +31,6 @@ function errorHandler(err, req, res, next) {
   } else {
     statusCode = 500;
     // Do not log request bodies, query values, credentials, or exception messages.
-    console.error(`[${new Date().toISOString()}] Request failed`, { method: req.method, errorType: err.name || 'Error' });
     writeLog('request.error', { method: req.method, errorType: err.name || 'Error', status: statusCode });
   }
 

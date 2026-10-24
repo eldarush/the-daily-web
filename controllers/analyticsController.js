@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { writeLog } = require('../config/logger');
 const Article = require('../models/Article');
 const ViewAnalytics = require('../models/ViewAnalytics');
 
@@ -52,7 +53,7 @@ async function recordView(articleId) {
       Article.findByIdAndUpdate(articleId, { $inc: { viewsCount: 1 } })
     ]);
   } catch (err) {
-    console.error(`recordView failed for article ${articleId}:`, err.message);
+    writeLog('analytics.record.failed', { level: 'error', errorType: err.name || 'Error' });
   }
 }
 

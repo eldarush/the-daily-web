@@ -4,7 +4,7 @@
  * Generates the dataset required for the oral defense:
  *   - 1 editor + 4 reporters (passwords hashed via the User pre-save hook)
  *   - 520 articles across all 7 categories and all 4 states
- *   - published articles carrying update histories (analytics milestones)
+ *   - every published article carrying 1-3 editor updates (analytics milestones)
  *   - 15 live articles with a staged revision, for the diff demo
  *   - up to 168 hours of view history per published article, with a visible
  *     readership bump after each editor update
@@ -14,6 +14,7 @@
  */
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const { writeLog } = require('../config/logger');
 
 dotenv.config();
 
@@ -178,30 +179,29 @@ async function seed() {
 
   const published = articles.filter((a) => a.status === 'published');
 
-  // Give ~40 published articles an update history (analytics milestones),
-  // and 15 of those a live staged revision for the diff demo.
-  const withUpdates = published.slice(0, 40);
+  // Every public post has approved editor-update milestones. Keep the 15
+  // staged revisions separate: they are proposals, not published updates.
   const withRevision = new Set(published.slice(0, 15).map((a) => a._id.toString()));
   const viewDocs = [];
 
-  for (const article of published) {
+  for (const [index, article] of published.entries()) {
     const updateTimes = [];
-    if (withUpdates.includes(article)) {
-      const count = randInt(1, 3);
-      for (let u = 0; u < count; u++) {
-        const t = new Date(article.publishedAt.getTime() + (u + 1) * randInt(18, 36) * HOUR_MS);
-        if (t.getTime() < now) {
-          updateTimes.push(t);
-          article.publishedUpdates.push({
-            publishedAt: t,
-            editor: editor._id,
-            changelogNote: pick(
-              ['Updated with official statement', 'Corrected figures', 'Added expert reaction', 'Expanded background'],
-              u
-            )
-          });
-        }
-      }
+    // Cycle the counts so examples with multiple approved updates always exist.
+    const count = 1 + index % 3;
+    const publishedMs = article.publishedAt.getTime();
+    // Even spacing guarantees chronological, past updates for every article,
+    // including the youngest posts, with view buckets before and after each one.
+    for (let u = 0; u < count; u++) {
+      const t = new Date(publishedMs + Math.floor((now - publishedMs) * (u + 1) / (count + 1)));
+      updateTimes.push(t);
+      article.publishedUpdates.push({
+        publishedAt: t,
+        editor: editor._id,
+        changelogNote: pick(
+          ['Updated with official statement', 'Corrected figures', 'Added expert reaction', 'Expanded background'],
+          u
+        )
+      });
     }
 
     if (withRevision.has(article._id.toString())) {
@@ -213,7 +213,8 @@ async function seed() {
         content: article.content + '\n\nUPDATE: additional confirmation received from a second source.',
         category: article.category,
         imageUrl: article.imageUrl,
-        updatedAt: new Date(now - randInt(1, 20) * HOUR_MS)
+        // This proposal was edited after the latest approved update.
+        updatedAt: new Date((updateTimes[updateTimes.length - 1].getTime() + now) / 2)
       };
     }
 
@@ -256,6 +257,6 @@ async function seedComments(articles) {
 }
 
 seed().catch(function (err) {
-  console.error('Seed failed:', err);
+  writeLog('seed.failed', { level: 'error', errorType: err.name || 'Error' });
   process.exit(1);
 });

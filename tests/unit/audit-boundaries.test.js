@@ -35,16 +35,43 @@ test('guest comment budget survives signing in and out of the same browser', asy
   expect(blocked.status).toBe(429);
   expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
 });
-test('operations are persisted without credentials, cookies, query strings or article text', async () => {
-  await request(app).post('/api/auth/login?secret=private-query').send({ username: 'audit_boundary', password: 'private-password' });
-  await request(app).post('/api/comments').send({ articleId: article.id, authorName: 'Private Name', content: 'Private comment body' });
-  const file = path.join(directory, 'operations.jsonl');
-  expect(fs.existsSync(file)).toBe(true);
-  const text = fs.readFileSync(file, 'utf8');
-  const entries = text.trim().split('\n').map(line => JSON.parse(line));
-  expect(entries.some(e => e.area === 'auth' && e.status === 200)).toBe(true);
-  for (const secret of ['private-password', 'private-query', 'Private Name', 'Private comment body', 'connect.sid']) expect(text).not.toContain(secret);
+test('routine outcomes go to console and important outcomes persist without private request data', async () => {
+  const consoleLog = jest.spyOn(console, 'info').mockImplementation(() => {});
+  try {
+    await request(app).post('/api/auth/login?secret=private-query').send({ username: 'audit_boundary', password: 'private-password' });
+    await request(app).post('/api/comments').send({ articleId: article.id, authorName: 'Private Name', content: 'Private comment body' });
+    expect((await request(app).get('/api/users?secret=private-query')).status).toBe(401);
+    const file = path.join(directory, 'operations.jsonl');
+    expect(fs.existsSync(file)).toBe(true);
+    const text = fs.readFileSync(file, 'utf8');
+    const entries = text.trim().split('\n').map(line => JSON.parse(line));
+    expect(entries.every(entry => entry.status >= 400)).toBe(true);
+    expect(entries.some(entry => entry.area === 'users' && entry.status === 401)).toBe(true);
+    const consoleEntries = consoleLog.mock.calls.map(call => JSON.parse(call[0]));
+    expect(consoleEntries.some(entry => entry.area === 'auth' && entry.status === 200)).toBe(true);
+    const recorded = text + JSON.stringify(consoleEntries);
+    for (const secret of ['private-password', 'private-query', 'Private Name', 'Private comment body', 'connect.sid']) expect(recorded).not.toContain(secret);
+  } finally {
+    consoleLog.mockRestore();
+  }
 });
+
+test('logging observes static successes and malformed requests before session middleware', async () => {
+  const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+  try {
+    expect((await request(app).get('/css/layout.css?token=private-query')).status).toBe(200);
+    expect(info.mock.calls.some(call => JSON.parse(call[0]).area === 'web')).toBe(true);
+    const malformed = await request(app).post('/api/comments?token=private-query').set('Content-Type', 'application/json').send('{not-json');
+    expect(malformed.status).toBe(400);
+    const text = fs.readFileSync(path.join(directory, 'operations.jsonl'), 'utf8');
+    expect(text.trim().split('\n').map(line => JSON.parse(line)).some(entry => entry.area === 'comments' && entry.status === 400 && entry.route === '(unmatched)')).toBe(true);
+    expect(text).not.toContain('private-query');
+    expect(text).not.toContain('not-json');
+  } finally {
+    info.mockRestore();
+  }
+});
+
 test('authentication rotates the guest session identifier', async () => {
   const browser = request.agent(app);
   const guest = await browser.get('/articles/' + article.id);

@@ -1,4 +1,5 @@
 const app = require('./app');
+const { writeLog } = require('./config/logger');
 const { connectDB, disconnectDB } = require('./config/db');
 
 const PORT = process.env.PORT || 3000;
@@ -23,7 +24,7 @@ async function startServer() {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   } catch (err) {
-    console.error('[Server] Failed to start application:', err.message);
+    writeLog('server.start.failed', { level: 'error', errorType: err.name || 'Error' });
     process.exit(1);
   }
 }
